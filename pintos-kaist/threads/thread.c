@@ -28,6 +28,9 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in THREAD_SLEEP state. */
+static struct list sleep_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -62,6 +65,8 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+static void wakeup(struct list_elem *elem);
+static bool compare_elem(const struct list_elem *a, const struct list_elem *b, void * aux);
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -108,6 +113,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list); // Add: seonghyeon
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -296,7 +302,7 @@ thread_exit (void) {
    may be scheduled again immediately at the scheduler's whim. */
 void
 thread_yield (void) {
-	struct thread *curr = thread_current ();
+	struct thread *curr = thread_current (); 
 	enum intr_level old_level;
 
 	ASSERT (!intr_context ());
@@ -587,4 +593,64 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+void
+thread_sleep(int64_t ticks){
+	struct thread *curr = thread_current (); 
+	enum intr_level old_level;
+
+	ASSERT (!intr_context ());
+
+	old_level = intr_disable ();
+	if (curr != idle_thread){
+		curr->status = THREAD_BLOCKED;
+		curr->wakeup_tick = ticks;
+		if(get_min_tick()>ticks){
+			set_min_tick(ticks);
+		}
+		list_insert_ordered(&sleep_list, &curr->elem, &compare_elem, NULL);
+		schedule();
+	}
+	intr_set_level (old_level);	
+}
+
+void
+find_wake_up_thread(int64_t ticks){
+	enum intr_level old_level;
+
+	old_level = intr_disable();
+	struct list_elem *elem = list_begin(&sleep_list);
+	struct list_elem *end = list_end(&sleep_list);
+	struct list_elem *next;
+	do{
+		struct thread *t = list_entry(elem, struct thread, elem);
+		if(t->wakeup_tick <= ticks){
+			elem = list_pop_front(&sleep_list);
+			next = list_next(elem);
+			wakeup(elem);
+			elem = next;
+		}else{
+			set_min_tick(t->wakeup_tick);
+			break;
+		}
+	}while(elem != NULL);
+	intr_set_level(old_level);
+}
+
+static void
+wakeup(struct list_elem *elem){
+	enum intr_level old_level = intr_disable();
+	struct thread *t = list_entry(elem, struct thread, elem);
+	t->status = THREAD_RUNNING;
+	list_push_back(&ready_list,elem);
+	intr_set_level(old_level);
+}
+
+static bool
+compare_elem(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(b, struct thread, elem);
+
+	return t_a->wakeup_tick < t_b->wakeup_tick;
 }

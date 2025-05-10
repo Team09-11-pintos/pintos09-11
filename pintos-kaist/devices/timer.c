@@ -20,6 +20,9 @@
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
+/* 남은 스레드 중 local_tick 최소 값*/
+static int64_t global_tick;
+
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
@@ -91,10 +94,15 @@ timer_elapsed (int64_t then) {
 void
 timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
-
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	/**
+	 * 1. alarm_zero test : start가 0이라도 ticks가 start보다 커야하기 때문에 무조건 통과
+	 * 2. alarm_negative test : start는 무조건 0 or 양수인데 ticks가 -100이므로 무조건 통과
+	 * 3. alarm_multiple test : 
+	*/
+	if(timer_elapsed(start) < ticks){
+		thread_sleep(start+ticks);
+	}
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -120,12 +128,21 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
 	thread_tick ();
+	
+	enum intr_level old_level = intr_disable();
+	
+	if(global_tick <= ticks){
+		find_wake_up_thread(ticks);
+	}
+
+	intr_set_level(old_level);
+	return;
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -183,4 +200,20 @@ real_time_sleep (int64_t num, int32_t denom) {
 		ASSERT (denom % 1000 == 0);
 		busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000));
 	}
+}
+
+int64_t
+get_min_tick(){
+	enum intr_level old_level = intr_disable();
+	int64_t min_tick = global_tick;
+	intr_set_level(old_level);
+	return min_tick;
+}
+
+void
+set_min_tick(int64_t min_tick){
+	enum intr_level old_level = intr_disable();
+	global_tick=min_tick;
+	intr_set_level(old_level);
+	return;
 }
