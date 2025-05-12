@@ -1,146 +1,157 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
 
-#include <debug.h>
-#include <list.h>
-#include <stdint.h>
-#include "threads/interrupt.h"
+#include <debug.h>              // 디버그 관련 매크로 및 함수 포함
+#include <list.h>               // 리스트 자료구조 관련 함수 포함
+#include <stdint.h>             // 정수형 타입 정의 포함
+#include "threads/interrupt.h"  // 인터럽트 관련 정의 포함
+
 #ifdef VM
-#include "vm/vm.h"
+#include "vm/vm.h"              // 가상 메모리 관련 정의 포함 (VM이 정의되어 있을 경우)
 #endif
 
+void thread_sleep(int64_t ticks);
+void thread_awake(int64_t ticks);
 
-/* States in a thread's life cycle. */
+/* 스레드 생명 주기 상태 열거형 정의 */
 enum thread_status {
-	THREAD_RUNNING,     /* Running thread. */
-	THREAD_READY,       /* Not running but ready to run. */
-	THREAD_BLOCKED,     /* Waiting for an event to trigger. */
-	THREAD_DYING        /* About to be destroyed. */
+  THREAD_RUNNING,     /* 현재 실행 중인 스레드 */
+  THREAD_READY,       /* 실행 준비가 된 스레드 */
+  THREAD_BLOCKED,     /* 이벤트를 기다리며 블록된 스레드 */
+  THREAD_DYING        /* 곧 종료될 예정인 스레드 */
 };
 
-/* Thread identifier type.
-   You can redefine this to whatever type you like. */
+/* 스레드 식별자 타입 정의 */
 typedef int tid_t;
-#define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
+#define TID_ERROR ((tid_t) -1)  /* TID 에러 값을 -1로 정의 */
 
-/* Thread priorities. */
-#define PRI_MIN 0                       /* Lowest priority. */
-#define PRI_DEFAULT 31                  /* Default priority. */
-#define PRI_MAX 63                      /* Highest priority. */
+/* 스레드 우선순위 관련 매크로 */
+#define PRI_MIN 0              /* 최소 우선순위 값 */
+#define PRI_DEFAULT 31         /* 기본 우선순위 값 */
+#define PRI_MAX 63             /* 최대 우선순위 값 */
 
-/* A kernel thread or user process.
+/* 커널 스레드 또는 사용자 프로세스를 나타내는 구조체 정의 */
+/*
+ * 각 스레드 구조체는 4KB의 페이지에 저장됨.
+ * 구조체 자체는 페이지의 맨 아래(0바이트)에 위치.
+ * 페이지의 나머지 공간은 해당 스레드의 커널 스택 용도로 사용되며,
+ * 위쪽(4KB)에서 아래쪽으로 자람.
  *
- * Each thread structure is stored in its own 4 kB page.  The
- * thread structure itself sits at the very bottom of the page
- * (at offset 0).  The rest of the page is reserved for the
- * thread's kernel stack, which grows downward from the top of
- * the page (at offset 4 kB).  Here's an illustration:
+ * 구조는 아래와 같음:
  *
- *      4 kB +---------------------------------+
- *           |          kernel stack           |
- *           |                |                |
- *           |                |                |
- *           |                V                |
- *           |         grows downward          |
- *           |                                 |
- *           |                                 |
- *           |                                 |
- *           |                                 |
- *           |                                 |
- *           |                                 |
- *           |                                 |
- *           |                                 |
- *           +---------------------------------+
- *           |              magic              |
- *           |            intr_frame           |
- *           |                :                |
- *           |                :                |
- *           |               name              |
- *           |              status             |
- *      0 kB +---------------------------------+
+ *   4 kB +-----------------------------+
+ *        |       커널 스택 영역         |
+ *        |          ...              |
+ *        |         (아래로 성장)         |
+ *        +-----------------------------+
+ *        |           magic           | <- 스택 오버플로 감지용
+ *        |         intr_frame        | <- 인터럽트 프레임 저장
+ *        |             :             |
+ *        |             :             |
+ *        |            name           | <- 스레드 이름
+ *        |           status          | <- 스레드 상태
+ *   0 kB +-----------------------------+
  *
- * The upshot of this is twofold:
- *
- *    1. First, `struct thread' must not be allowed to grow too
- *       big.  If it does, then there will not be enough room for
- *       the kernel stack.  Our base `struct thread' is only a
- *       few bytes in size.  It probably should stay well under 1
- *       kB.
- *
- *    2. Second, kernel stacks must not be allowed to grow too
- *       large.  If a stack overflows, it will corrupt the thread
- *       state.  Thus, kernel functions should not allocate large
- *       structures or arrays as non-static local variables.  Use
- *       dynamic allocation with malloc() or palloc_get_page()
- *       instead.
- *
- * The first symptom of either of these problems will probably be
- * an assertion failure in thread_current(), which checks that
- * the `magic' member of the running thread's `struct thread' is
- * set to THREAD_MAGIC.  Stack overflow will normally change this
- * value, triggering the assertion. */
-/* The `elem' member has a dual purpose.  It can be an element in
- * the run queue (thread.c), or it can be an element in a
- * semaphore wait list (synch.c).  It can be used these two ways
- * only because they are mutually exclusive: only a thread in the
- * ready state is on the run queue, whereas only a thread in the
- * blocked state is on a semaphore wait list. */
+ * 주의할 점:
+ * 1. 구조체 크기가 너무 크면 커널 스택 공간이 부족해짐.
+ *    커널 함수에서는 큰 지역변수 사용 금지 → malloc() 또는 palloc 사용 권장
+ * 2. 스택 오버플로가 발생하면 magic 값이 변경되어 에러 발생
+ */
+
+/*
+ * elem은 이중 용도로 사용됨:
+ * - 스레드가 준비 상태일 경우: run queue에 포함됨 (thread.c)
+ * - 블록 상태일 경우: 세마포어 대기 리스트에 포함됨 (synch.c)
+ * 두 상태는 동시에 발생하지 않으므로 elem을 겹쳐 사용 가능
+ */
+
+
 struct thread {
-	/* Owned by thread.c. */
-	tid_t tid;                          /* Thread identifier. */
-	enum thread_status status;          /* Thread state. */
-	char name[16];                      /* Name (for debugging purposes). */
-	int priority;                       /* Priority. */
+  /* thread.c 에서 사용하는 필드들 */
+  tid_t tid;                          /* 스레드 식별자 */
+  enum thread_status status;         /* 스레드 상태 */
+  char name[16];                     /* 스레드 이름 (디버깅용) */
+  int priority;                      /* 스레드 우선순위 */
 
-	/* Shared between thread.c and synch.c. */
-	struct list_elem elem;              /* List element. */
+  int64_t wakeup;// 지역변수 선언 웨이크업 틱
+
+  /* thread.c 와 synch.c 에서 공유하는 필드 */
+  struct list_elem elem;             /* 리스트 요소 (큐/세마포어 등에서 사용) */
 
 #ifdef USERPROG
-	/* Owned by userprog/process.c. */
-	uint64_t *pml4;                     /* Page map level 4 */
-#endif
-#ifdef VM
-	/* Table for whole virtual memory owned by thread. */
-	struct supplemental_page_table spt;
+  /* userprog/process.c 에서 사용하는 필드 */
+  uint64_t *pml4;                    /* 사용자 주소 공간 (4단계 페이지 테이블 포인터) */
 #endif
 
-	/* Owned by thread.c. */
-	struct intr_frame tf;               /* Information for switching */
-	unsigned magic;                     /* Detects stack overflow. */
+#ifdef VM
+  /* 해당 스레드가 소유한 전체 가상 메모리 구조 */
+  struct supplemental_page_table spt;
+#endif
+
+  /* thread.c 에서 사용하는 필드 */
+  struct intr_frame tf;              /* 인터럽트 프레임 저장용 구조체 */
+  unsigned magic;                    /* 스택 오버플로 감지용 값 (THREAD_MAGIC) */
 };
 
-/* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "-o mlfqs". */
+/* 스케줄러 선택 매크로
+ * false (기본값)일 경우 round-robin 스케줄러 사용
+ * true일 경우 MLFQ (멀티레벨 피드백 큐) 스케줄러 사용
+ * 이는 커널 명령줄 옵션 -o mlfqs 로 설정 가능 */
 extern bool thread_mlfqs;
 
+/* 스레드 시스템 초기화 함수 */
 void thread_init (void);
+/* 첫 번째 스레드를 시작시키는 함수 */
 void thread_start (void);
 
+/* 타이머 틱이 발생했을 때 호출되는 함수 */
 void thread_tick (void);
+/* 스레드 상태 통계 출력 함수 */
 void thread_print_stats (void);
 
+/* 새로운 스레드를 생성하는 함수 */
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 
+/* 현재 스레드를 블록 상태로 전환하는 함수 */
 void thread_block (void);
+/* 블록 상태의 스레드를 언블록 상태로 전환하는 함수 */
 void thread_unblock (struct thread *);
 
+/* 현재 실행 중인 스레드를 반환하는 함수 */
 struct thread *thread_current (void);
+/* 현재 스레드의 tid 반환 */
 tid_t thread_tid (void);
+/* 현재 스레드의 이름 반환 */
 const char *thread_name (void);
 
+/* 현재 스레드를 종료시키는 함수 (리턴하지 않음) */
 void thread_exit (void) NO_RETURN;
+/* 현재 스레드가 CPU를 양보하는 함수 */
 void thread_yield (void);
 
+/* 현재 스레드의 우선순위 반환 */
 int thread_get_priority (void);
+/* 현재 스레드의 우선순위 설정 */
 void thread_set_priority (int);
 
+/* nice 값 관련 getter/setter */
 int thread_get_nice (void);
 void thread_set_nice (int);
+
+/* 최근 사용한 CPU 시간 반환 */
 int thread_get_recent_cpu (void);
+/* 시스템 평균 부하 반환 */
 int thread_get_load_avg (void);
 
+/* 인터럽트 리턴 시 상태 복원 함수 */
 void do_iret (struct intr_frame *tf);
+
+void thread_sleep(int64_t ticks);
+void thread_wakeup(int64_t ticks);
+
+extern int64_t global_tick;
+
+
 
 #endif /* threads/thread.h */
