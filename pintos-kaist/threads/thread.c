@@ -10,6 +10,7 @@
 #include "threads/palloc.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #include "intrinsic.h"
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -65,7 +66,6 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
-static void wakeup(struct list_elem *elem);
 static bool compare_elem(const struct list_elem *a, const struct list_elem *b, void * aux);
 
 /* Returns true if T appears to point to a valid thread. */
@@ -623,27 +623,31 @@ find_wake_up_thread(int64_t ticks){
 	struct list_elem *elem = list_begin(&sleep_list);
 	struct list_elem *end = list_end(&sleep_list);
 	struct list_elem *next;
-	do{
+	// do{
+	// 	struct thread *t = list_entry(elem, struct thread, elem);
+	// 	if(t->wakeup_tick <= ticks){
+	// 		elem = list_pop_front(&sleep_list);
+	// 		next = list_next(elem);
+	// 		wakeup(elem);
+	// 		elem = next;
+	// 	}else{
+	// 		set_min_tick(t->wakeup_tick);
+	// 		break;
+	// 	}
+	// }while(elem != NULL);
+
+	while(elem!=end){
 		struct thread *t = list_entry(elem, struct thread, elem);
 		if(t->wakeup_tick <= ticks){
 			elem = list_pop_front(&sleep_list);
 			next = list_next(elem);
-			wakeup(elem);
+			thread_unblock(t);
 			elem = next;
 		}else{
 			set_min_tick(t->wakeup_tick);
 			break;
 		}
-	}while(elem != NULL);
-	intr_set_level(old_level);
-}
-
-static void
-wakeup(struct list_elem *elem){
-	enum intr_level old_level = intr_disable();
-	struct thread *t = list_entry(elem, struct thread, elem);
-	t->status = THREAD_RUNNING;
-	list_push_back(&ready_list,elem);
+	}
 	intr_set_level(old_level);
 }
 

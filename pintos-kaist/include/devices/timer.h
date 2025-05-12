@@ -20,4 +20,7 @@ void timer_nsleep (int64_t nanoseconds);
 
 void timer_print_stats (void);
 
+int64_t get_min_tick();
+void set_min_tick(int64_t min_tick);
+
 #endif /* devices/timer.h */
