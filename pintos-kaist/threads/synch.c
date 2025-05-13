@@ -66,11 +66,20 @@ sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-		list_push_back (&sema->waiters, &thread_current ()->elem);
+		list_insert_ordered (&sema->waiters, &thread_current ()->elem, cmp_priority, NULL);
 		thread_block ();
 	}
 	sema->value--;
 	intr_set_level (old_level);
+}
+
+bool
+cmp_priority(const struct list_elem *a, const struct list_elem *b,
+				 void *aux){
+	struct thread *a_ = list_entry (a, struct semaphore_elem, elem);
+	struct thread *b_ = list_entry (b, struct semaphore_elem, elem);
+
+	return a_->priority > b_->priority;
 }
 
 /* Down or "P" operation on a semaphore, but only if the
@@ -150,7 +159,6 @@ sema_test_helper (void *sema_) {
 		sema_up (&sema[1]);
 	}
 }
-
 /* Initializes LOCK.  A lock can be held by at most a single
    thread at any given time.  Our locks are not "recursive", that
    is, it is an error for the thread currently holding a lock to

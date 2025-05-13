@@ -90,6 +90,7 @@ struct thread {
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
+	int64_t wakeup_tick;				/*new field for local ticks*/
 	int priority;                       /* Priority. */
 
 	/* Shared between thread.c and synch.c. */
@@ -109,10 +110,13 @@ struct thread {
 	unsigned magic;                     /* Detects stack overflow. */
 };
 
+extern int64_t global_tick;
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
 
 void thread_init (void);
 void thread_start (void);
