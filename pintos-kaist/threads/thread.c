@@ -212,7 +212,12 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
+	preem(t);
+	// struct thread *curr = thread_current();
 
+	// if(curr->priority < t->priority && curr!=idle_thread){
+	// 	thread_yield();
+	// }
 	return tid;
 }
 
@@ -249,9 +254,6 @@ thread_unblock (struct thread *t) {
 	ASSERT (t->status == THREAD_BLOCKED);
 	list_insert_ordered (&ready_list, &t->elem, compare_elem_by_priority, NULL);
 	t->status = THREAD_READY;
-	if(curr != idle_thread && thread_get_priority() < t->priority){
-		thread_yield();
-	}
 	intr_set_level (old_level);
 }
 
@@ -328,9 +330,7 @@ thread_set_priority (int new_priority) {
 	t->priority = new_priority;
 	if(!list_empty(&ready_list)){
 		struct thread *front = list_entry(list_front(&ready_list), struct thread, elem);
-		if(t != idle_thread && thread_get_priority() < front->priority){
-			thread_yield();
-		}
+		preem(front);
 	}
 	intr_set_level(old_level);
 }
@@ -668,4 +668,25 @@ compare_elem_by_priority(const struct list_elem *a, const struct list_elem *b, v
 	struct thread *t_b = list_entry(b, struct thread, elem);
 
 	return t_a->priority > t_b->priority;
+}
+
+bool
+compare_elem_for_sema(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct semaphore_elem * sa= list_entry(a, struct semaphore_elem, elem);
+	struct semaphore_elem * sb= list_entry(b, struct semaphore_elem, elem);
+
+	struct thread *ta = list_entry(list_begin(&sa->semaphore.waiters), struct thread, elem);
+	struct thread *tb = list_entry(list_begin(&sb->semaphore.waiters), struct thread, elem);
+	return ta->priority > tb->priority;
+}
+
+void
+preem(struct thread *t){
+	enum intr_level old = intr_disable();
+	struct thread *curr = thread_current();
+
+	if(curr->priority < t->priority && curr != idle_thread){
+		thread_yield();
+	}
+	intr_set_level(old);
 }
