@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -108,6 +109,10 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+
+	struct lock wait_on_lock;
+	struct list donations;
+	struct list_elem d_elem;
 };
 
 /* If false (default), use round-robin scheduler.
@@ -145,5 +150,8 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
+
+bool compare_elem_by_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool compare_elem_for_sema(const struct list_elem *a, const struct list_elem *b, void *aux);
 
 #endif /* threads/thread.h */

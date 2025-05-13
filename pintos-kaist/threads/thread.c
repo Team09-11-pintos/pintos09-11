@@ -240,14 +240,18 @@ thread_block (void) {
    update other data. */
 void
 thread_unblock (struct thread *t) {
+	struct thread *curr = thread_current();
 	enum intr_level old_level;
 
 	ASSERT (is_thread (t));
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered (&ready_list, &t->elem, compare_elem_by_priority, NULL);
 	t->status = THREAD_READY;
+	if(curr != idle_thread && thread_get_priority() < t->priority){
+		thread_yield();
+	}
 	intr_set_level (old_level);
 }
 
@@ -309,7 +313,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem, compare_elem_by_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -317,7 +321,18 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	struct thread *t = thread_current();
+	enum intr_level old_level;
+
+	old_level = intr_disable();
+	t->priority = new_priority;
+	if(!list_empty(&ready_list)){
+		struct thread *front = list_entry(list_front(&ready_list), struct thread, elem);
+		if(t != idle_thread && thread_get_priority() < front->priority){
+			thread_yield();
+		}
+	}
+	intr_set_level(old_level);
 }
 
 /* Returns the current thread's priority. */
@@ -609,7 +624,7 @@ thread_sleep(int64_t ticks){
 		if(get_min_tick()>ticks){
 			set_min_tick(ticks);
 		}
-		list_insert_ordered(&sleep_list, &curr->elem, &compare_elem, NULL);
+		list_insert_ordered(&sleep_list, &curr->elem, compare_elem, NULL);
 		schedule();
 	}
 	intr_set_level (old_level);	
@@ -623,18 +638,6 @@ find_wake_up_thread(int64_t ticks){
 	struct list_elem *elem = list_begin(&sleep_list);
 	struct list_elem *end = list_end(&sleep_list);
 	struct list_elem *next;
-	// do{
-	// 	struct thread *t = list_entry(elem, struct thread, elem);
-	// 	if(t->wakeup_tick <= ticks){
-	// 		elem = list_pop_front(&sleep_list);
-	// 		next = list_next(elem);
-	// 		wakeup(elem);
-	// 		elem = next;
-	// 	}else{
-	// 		set_min_tick(t->wakeup_tick);
-	// 		break;
-	// 	}
-	// }while(elem != NULL);
 
 	while(elem!=end){
 		struct thread *t = list_entry(elem, struct thread, elem);
@@ -657,4 +660,12 @@ compare_elem(const struct list_elem *a, const struct list_elem *b, void *aux UNU
 	struct thread *t_b = list_entry(b, struct thread, elem);
 
 	return t_a->wakeup_tick < t_b->wakeup_tick;
+}
+
+bool 
+compare_elem_by_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(b, struct thread, elem);
+
+	return t_a->priority > t_b->priority;
 }
