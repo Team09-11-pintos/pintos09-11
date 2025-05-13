@@ -281,6 +281,9 @@ thread_create (const char *name, int priority,
 	
 	preempt_priority();
 
+	// if(curr->priority < t->priority && curr!=idle_thread){
+	// 	thread_yield();
+	// }
 	return tid;
 }
 
@@ -318,9 +321,6 @@ thread_unblock (struct thread *t) {
 	// list_push_back (&ready_list, &t->elem);
 	list_insert_ordered(&ready_list, &t->elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
-	if(curr != idle_thread && thread_get_priority() < t->priority){
-		thread_yield();
-	}
 	intr_set_level (old_level);
 }
 

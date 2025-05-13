@@ -163,4 +163,6 @@ void do_iret (struct intr_frame *tf);
 bool compare_elem_by_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 bool compare_elem_for_sema(const struct list_elem *a, const struct list_elem *b, void *aux);
 
+void preem(struct thread* t);
+
 #endif /* threads/thread.h */

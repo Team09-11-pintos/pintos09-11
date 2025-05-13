@@ -66,12 +66,7 @@ sema_down (struct semaphore *sema) {
 
 	old_level = intr_disable ();
 	while (sema->value == 0) {
-<<<<<<< HEAD
 		list_insert_ordered (&sema->waiters, &thread_current ()->elem, cmp_priority_1, NULL);
-=======
-		list_insert_ordered (&sema->waiters, &thread_current ()->elem, compare_elem_by_priority, NULL);
-		// list_push_back(&sema->waiters,&thread_current()->elem);
->>>>>>> Add: priority scheduling basic
 		thread_block ();
 	}
 	sema->value--;
@@ -329,15 +324,6 @@ lock_held_by_current_thread (const struct lock *lock) {
 
 	return lock->holder == thread_current ();
 }
-<<<<<<< HEAD
-=======
-
-/* One semaphore in a list. */
-struct semaphore_elem {
-	struct list_elem elem;              /* List element. */
-	struct semaphore semaphore;         /* This semaphore. */
-};
->>>>>>> Add: priority scheduling basic
 
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
@@ -379,12 +365,7 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	ASSERT (lock_held_by_current_thread (lock));
 
 	sema_init (&waiter.semaphore, 0);
-<<<<<<< HEAD
 	list_insert_ordered (&cond->waiters, &waiter.elem, cmp_priority_2, NULL);
-=======
-	list_insert_ordered (&cond->waiters, &waiter.elem,compare_elem_by_priority, NULL);
-	// list_push_back(&cond->waiters, &waiter.elem);
->>>>>>> Add: priority scheduling basic
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
 	lock_acquire (lock);
@@ -424,9 +405,4 @@ cond_broadcast (struct condition *cond, struct lock *lock) {
 
 	while (!list_empty (&cond->waiters))
 		cond_signal (cond, lock);
-<<<<<<< HEAD
 }
-=======
-}
-
->>>>>>> Add: priority scheduling basic
