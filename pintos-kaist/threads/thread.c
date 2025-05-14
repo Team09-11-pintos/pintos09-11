@@ -328,12 +328,24 @@ thread_set_priority (int new_priority) {
 
 	old_level = intr_disable();
 	t->priority = new_priority;
+	t->original_priority = new_priority;
 	if(!list_empty(&ready_list)){
+		list_sort(&ready_list, compare_elem_by_priority, NULL);
 		struct thread *front = list_entry(list_front(&ready_list), struct thread, elem);
 		preem(front);
 	}
 	intr_set_level(old_level);
 }
+
+void
+thread_donate_priority(struct thread *t, int new){
+	t->priority = new;
+	if(!list_empty(&ready_list)){
+		list_sort(&ready_list, compare_elem_by_priority, NULL);
+		thread_yield();
+	}
+}
+
 
 /* Returns the current thread's priority. */
 int
@@ -429,7 +441,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
+	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;
+	t->wait_on_lock = NULL;
+
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -688,5 +703,12 @@ preem(struct thread *t){
 	if(curr->priority < t->priority && curr != idle_thread){
 		thread_yield();
 	}
+	intr_set_level(old);
+}
+
+void
+sort_ready_list(){
+	enum intr_level old = intr_disable();
+	list_sort(&ready_list, compare_elem_by_priority,NULL);
 	intr_set_level(old);
 }
