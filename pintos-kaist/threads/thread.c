@@ -327,23 +327,30 @@ thread_set_priority (int new_priority) {
 	enum intr_level old_level;
 
 	old_level = intr_disable();
-	t->priority = new_priority;
-	t->original_priority = new_priority;
-	if(!list_empty(&ready_list)){
-		list_sort(&ready_list, compare_elem_by_priority, NULL);
-		struct thread *front = list_entry(list_front(&ready_list), struct thread, elem);
-		preem(front);
+	if(t->original_priority == t->priority){
+		//donation 안 받은 상태
+		t->priority = new_priority;
+		t->original_priority = new_priority;
+		if(!list_empty(&ready_list)){
+			list_sort(&ready_list, compare_elem_by_priority, NULL);
+			struct thread *front = list_entry(list_front(&ready_list), struct thread, elem);
+			preem(front);
+		}
+	}else{
+		//donation 받은 상태
+		if(t->priority < new_priority){
+			t->priority = new_priority;
+			t->original_priority = new_priority;
+		}else{
+			t->original_priority = new_priority;
+		}
 	}
 	intr_set_level(old_level);
 }
 
 void
-thread_donate_priority(struct thread *t, int new){
-	t->priority = new;
-	if(!list_empty(&ready_list)){
-		list_sort(&ready_list, compare_elem_by_priority, NULL);
-		thread_yield();
-	}
+thread_donate_priority(struct thread *t, struct thread *donated){
+	
 }
 
 
@@ -444,7 +451,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;
 	t->wait_on_lock = NULL;
-
+	list_init(&t->donations);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
