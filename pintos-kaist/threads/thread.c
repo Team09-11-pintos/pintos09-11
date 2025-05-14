@@ -45,6 +45,8 @@ static struct list sleep_list;//
 int64_t global_tick=0;
 
 
+
+
 /* 통계용 카운터 */
 static long long idle_ticks;   /* idle 스레드가 소비한 타이머 틱 */
 static long long kernel_ticks; /* 순수 커널 스레드가 소비한 틱 */
@@ -66,6 +68,12 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+bool cmp_awake(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
+bool cmp_priority (const struct list_elem*a,const struct list_elem *b,void *aus UNUSED);
+void thread_sleep(int64_t ticks);
+void thread_awake(int64_t ticks);
+void thread_test_preemption(void);
+
 
 /* T 가 유효한 thread 구조체를 가리키면 true 반환. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -130,7 +138,7 @@ void thread_start (void) {
     sema_down (&idle_started);
 }
 
-/* =============================
+/* =============================3
    3. 타이머 틱 처리
    ============================= */
 /* 타이머 인터럽트마다 호출. (인터럽트 컨텍스트) */
@@ -198,6 +206,9 @@ tid_t thread_create (const char *name, int priority,
 
     /* 4) ready 큐에 삽입 */
     thread_unblock (t);
+    // if (t->priority>thread_current()->priority)
+    //     thread_yield;
+    thread_test_preemption();
 
     return tid;
 }
@@ -226,7 +237,9 @@ void thread_unblock (struct thread *t) {
 
     old_level = intr_disable ();           // 원자적 처리 위해 인터럽트 off
     ASSERT (t->status == THREAD_BLOCKED);
-    list_insert_ordered (&ready_list, &t->elem,t->priority,NULL); // ready 큐 끝에 삽입
+    list_insert_ordered (&ready_list, &t->elem,cmp_priority,NULL); // ready 큐 끝에 삽입
+    //list_push_back(&ready_list, &t->elem);
+
     t->status = THREAD_READY;
     intr_set_level (old_level);            // 인터럽트 복원
 }
@@ -277,7 +290,8 @@ void thread_yield (void) {
 
     old_level = intr_disable ();
     if (cur != idle_thread)
-        list_push_back (&ready_list, &cur->elem); // 다시 ready 큐
+        //list_push_back (&ready_list, &cur->elem); // 다시 ready 큐
+        list_insert_ordered(&ready_list,&cur->elem,cmp_priority,NULL);
     do_schedule (THREAD_READY);                    // 상태 변경·스케줄
     intr_set_level (old_level);
 }
@@ -287,6 +301,7 @@ void thread_yield (void) {
    ============================= */
 void thread_set_priority (int new_priority) {
     thread_current ()->priority = new_priority;    // 단순 대입 (기본 구현)
+    thread_test_preemption();
 }
 
 int thread_get_priority (void) {
@@ -517,11 +532,15 @@ bool cmp_awake(const struct list_elem *a,const struct list_elem *b,void *aux UNU
     struct thread *t_b=list_entry(b,struct thread,elem);
     return t_a->wakeup < t_b->wakeup;
 }
-void cmp_priority(int new_priority){
-    struct thread *cur=thread_current();
-    cur->priority=new_priority;
-
+// bool cmp_priority (struct list_elem*a,struct list_elem *b,void *aus UNUSED){
+//     return list_entry (a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority;
+// }
+bool cmp_priority(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+    struct thread *st_a=list_entry(a,struct thread, elem);
+    struct thread *st_b=list_entry(b,struct thread, elem);
+    return st_a->priority > st_b->priority;
 }
+
 void thread_sleep(int64_t ticks){//스레드를 재우는 함수
 	enum intr_level old_level=intr_disable();//이거 인터럽트 닫음
 	struct thread *cur = thread_current();//cur 변수를 만들음
@@ -548,4 +567,21 @@ void thread_awake(int64_t ticks){
             //e = list_next(e);
 		}
 	}
+}
+// void thread_test_preemption(void){
+//     if(!list_empty (&ready_list)&&thread_current()->priority<list_entry(list_front(&ready_list),
+//     struct thread,elem)->priority)
+//         thread_yield();
+// }
+void thread_test_preemption(void){
+    //ASSERT(thread_current()!=idle_thread);
+    //ASSERT(!list_empty(&ready_list));
+    if (thread_current() == idle_thread)
+        return;
+    if (list_empty(&ready_list))
+        return;
+    struct thread *cur  = thread_current();
+    struct thread *ready = list_entry(list_front(&ready_list),struct thread,elem);
+    if(cur->priority < ready->priority)
+        thread_yield();
 }
