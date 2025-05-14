@@ -72,11 +72,13 @@ struct thread {
   enum thread_status status;         /* 스레드 상태 */
   char name[16];                     /* 스레드 이름 (디버깅용) */
   int priority;                      /* 스레드 우선순위 */
-
   int64_t wakeup;// 지역변수 선언 웨이크업 틱
-
   /* thread.c 와 synch.c 에서 공유하는 필드 */
   struct list_elem elem;             /* 리스트 요소 (큐/세마포어 등에서 사용) */
+  int init_priority; // 스레드가 원래 가지고 있던 초기 우선순위 (기부받기 전 값)
+  struct lock *wait_on_lock; // 현재 이 스레드가 얻으려고 기다리는 락 (기부의 대상자 찾기용)
+  struct list donations; // 다른 스레드들이 이 스레드에게 기부한 우선순위 정보 리스트
+  struct list_elem donations_elem; // 이 스레드가 다른 스레드의 donations 리스트에 들어갈 때 쓰이는 리스트 노드
 
 #ifdef USERPROG
   /* userprog/process.c 에서 사용하는 필드 */

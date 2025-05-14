@@ -208,7 +208,9 @@ tid_t thread_create (const char *name, int priority,
     thread_unblock (t);
     // if (t->priority>thread_current()->priority)
     //     thread_yield;
-    thread_test_preemption();
+    //thread_test_preemption();
+    if(t->priority > thread_current()->priority)
+        thread_yield();
 
     return tid;
 }
@@ -300,7 +302,8 @@ void thread_yield (void) {
    9. 우선순위 관련 (과제에서 확장)
    ============================= */
 void thread_set_priority (int new_priority) {
-    thread_current ()->priority = new_priority;    // 단순 대입 (기본 구현)
+    thread_current ()->init_priority = new_priority;    // 단순 대입 (기본 구현)
+    restore_priority();
     thread_test_preemption();
 }
 
@@ -366,7 +369,12 @@ static void init_thread (struct thread *t, const char *name, int priority) {
     t->status = THREAD_BLOCKED;            // 최초 상태 BLOCKED
     strlcpy (t->name, name, sizeof t->name); // 이름 복사
     t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *); // 최상단 스택 준비
-    t->priority = priority;                // 우선순위 설정
+
+    t->priority = t->init_priority = priority;
+    list_init(&t->donations);
+    t->wait_on_lock=NULL;
+
+    //t->priority = priority;                // 우선순위 설정
     t->magic = THREAD_MAGIC;               // 무결성 체크용 값
 }
 
@@ -538,6 +546,8 @@ bool cmp_awake(const struct list_elem *a,const struct list_elem *b,void *aux UNU
 bool cmp_priority(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
     struct thread *st_a=list_entry(a,struct thread, elem);
     struct thread *st_b=list_entry(b,struct thread, elem);
+    // if(st_a ==NULL || st_b== NULL)
+    //     return false;
     return st_a->priority > st_b->priority;
 }
 
@@ -576,12 +586,12 @@ void thread_awake(int64_t ticks){
 void thread_test_preemption(void){
     //ASSERT(thread_current()!=idle_thread);
     //ASSERT(!list_empty(&ready_list));
-    if (thread_current() == idle_thread)
-        return;
+    // if (thread_current() == idle_thread)
+    //     return;
     if (list_empty(&ready_list))
         return;
-    struct thread *cur  = thread_current();
+    //struct thread *cur  = thread_current();
     struct thread *ready = list_entry(list_front(&ready_list),struct thread,elem);
-    if(cur->priority < ready->priority)
+    if(thread_get_priority() < ready->priority)
         thread_yield();
 }
