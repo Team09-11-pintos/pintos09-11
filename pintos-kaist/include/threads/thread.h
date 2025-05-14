@@ -116,7 +116,7 @@ struct thread {
 	unsigned magic;                     /* Detects stack overflow. */
 
 	struct lock *wait_on_lock; // 현재 어떤 lock을 기다리고 있는지 저장 용
-	struct list donations; // 
+	struct list donations; // 자신에게 기부한 스레드들 리스트 저장 용
 	struct list_elem d_elem;
 };
 
@@ -164,7 +164,7 @@ bool compare_elem_by_priority(const struct list_elem *a, const struct list_elem 
 bool compare_elem_for_sema(const struct list_elem *a, const struct list_elem *b, void *aux);
 
 void preem(struct thread* t);
-void thread_donate_priority(struct thread *t, int new);
+void thread_donate_priority(struct thread *t, struct thread *donated);
 void sort_ready_list();
 
 #endif /* threads/thread.h */
