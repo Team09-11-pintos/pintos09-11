@@ -279,10 +279,7 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 	
-	struct thread *cur = thread_current();
-	if (cur->priority < t->priority){
-		thread_yield();
-	}
+	preempt_priority();
 
 	return tid;
 }
@@ -393,6 +390,19 @@ thread_yield (void) {
 		list_insert_ordered (&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
+}
+
+void
+preempt_priority(void)
+{
+    if (thread_current() == idle_thread)
+        return;
+    if (list_empty(&ready_list))
+        return;
+    struct thread *curr = thread_current();
+    struct thread *ready = list_entry(list_front(&ready_list), struct thread, elem);
+    if (curr->priority < ready->priority) // ready_list에 현재 실행중인 스레드보다 우선순위가 높은 스레드가 있으면
+        thread_yield();
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */

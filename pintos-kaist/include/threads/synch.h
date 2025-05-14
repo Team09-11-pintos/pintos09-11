@@ -10,6 +10,11 @@ struct semaphore {
 	struct list waiters;        /* List of waiting threads. */
 };
 
+struct semaphore_elem {
+	struct list_elem elem;              /* List element. */
+	struct semaphore semaphore;         /* This semaphore. */
+};
+
 void sema_init (struct semaphore *, unsigned value);
 void sema_down (struct semaphore *);
 bool sema_try_down (struct semaphore *);
@@ -39,8 +44,13 @@ void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
 bool
-cmp_priority(const struct list_elem *a, const struct list_elem *b,
+cmp_priority_2(const struct list_elem *a, const struct list_elem *b,
 				 void *aux);
+
+bool
+cmp_priority_1(const struct list_elem *a, const struct list_elem *b,
+				 void *aux);
+
 /* Optimization barrier.
  *
  * The compiler will not reorder operations across an

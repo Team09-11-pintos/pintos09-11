@@ -76,10 +76,16 @@ sema_down (struct semaphore *sema) {
 bool
 cmp_priority_2(const struct list_elem *a, const struct list_elem *b,
 				 void *aux){
-	struct thread *a_ = list_entry (a, struct semaphore_elem, elem);
-	struct thread *b_ = list_entry (b, struct semaphore_elem, elem);
+	struct semaphore_elem *a_ = list_entry (a, struct semaphore_elem, elem);
+	struct semaphore_elem *b_ = list_entry (b, struct semaphore_elem, elem);
 
-	return a_->priority > b_->priority;
+	struct list *waiters_a = &(a_->semaphore.waiters);
+	struct list *waiters_b = &(b_->semaphore.waiters);
+
+	struct thread *root_a = list_entry(list_begin(waiters_a), struct thread, elem);
+	struct thread *root_b = list_entry(list_begin(waiters_b), struct thread, elem);
+	
+	return root_a->priority > root_b->priority;
 }
 
 bool
@@ -127,10 +133,13 @@ sema_up (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 
 	old_level = intr_disable ();
-	if (!list_empty (&sema->waiters))
+	if (!list_empty (&sema->waiters)){
+		list_sort(&sema->waiters, cmp_priority_1, NULL);
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),
 					struct thread, elem));
+	}	
 	sema->value++;
+	preempt_priority();
 	intr_set_level (old_level);
 }
 
@@ -313,9 +322,11 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 	ASSERT (!intr_context ());
 	ASSERT (lock_held_by_current_thread (lock));
 
-	if (!list_empty (&cond->waiters))
+	if (!list_empty (&cond->waiters)){
+		list_sort(&cond->waiters, cmp_priority_2, NULL);
 		sema_up (&list_entry (list_pop_front (&cond->waiters),
 					struct semaphore_elem, elem)->semaphore);
+	}
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by
