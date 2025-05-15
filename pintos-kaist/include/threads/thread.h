@@ -95,6 +95,7 @@ struct thread {
 	int original_priority;				/*store origin priority*/
 	struct list donations;				/*inherited priority list*/
 	struct lock *wait_on_lock;
+	struct list_elem donation_elem;
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */

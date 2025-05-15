@@ -32,6 +32,8 @@ void lock_acquire (struct lock *);
 bool lock_try_acquire (struct lock *);
 void lock_release (struct lock *);
 bool lock_held_by_current_thread (const struct lock *);
+void update_donations_priority(void);
+void remove_donor(struct lock *lock);
 
 /* Condition variable. */
 struct condition {
@@ -49,6 +51,10 @@ cmp_priority_2(const struct list_elem *a, const struct list_elem *b,
 
 bool
 cmp_priority_1(const struct list_elem *a, const struct list_elem *b,
+				 void *aux);
+
+bool
+cmp_donate_priority(const struct list_elem *a, const struct list_elem *b,
 				 void *aux);
 
 /* Optimization barrier.
