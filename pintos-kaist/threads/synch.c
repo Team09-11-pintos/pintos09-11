@@ -33,6 +33,7 @@
 #include "threads/thread.h"
 void restore_priority(void);
 void remove_lock(struct lock *lock);
+void lock_release(struct lock *lock);
 
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
@@ -189,7 +190,6 @@ lock_init (struct lock *lock) {
    we need to sleep. */
 void
 lock_acquire (struct lock *lock) {
-	
 	ASSERT (lock != NULL);//락포인터가 유효한지
 	ASSERT (!intr_context ());//인터럽트 핸들러안에선 사용 x
 	ASSERT (!lock_held_by_current_thread (lock));//현재 스레드가 이 락을 소유하고 있으면 요청 못하게
@@ -198,7 +198,8 @@ lock_acquire (struct lock *lock) {
 	if(lock->holder && cur->priority > lock->holder->priority){//홀더가 있고 현재 실행중인 스레드의 우선순위가 락을 가지고 있는 스레드의 우선순위보다 높을때 아래를 실행함
 		cur->wait_on_lock=lock;//? 이게 왜? 현재 실행중인 스레드가 기다리는 락을 아 현재 락으로 설정해야 하는구나
 		list_insert_ordered(&lock->holder->donations,&cur->donations_elem,cmp_priority,NULL);
-		lock->holder->priority = cur->priority;
+		//lock->holder->priority = cur->priority;
+		donations_priority();
 	}
 	
 	sema_down (&lock->semaphore);//락을 얻고 만약 사용중이라면(value=0) 현재 스레드는 block 
@@ -231,17 +232,17 @@ lock_try_acquire (struct lock *lock) {
    An interrupt handler cannot acquire a lock, so it does not
    make sense to try to release a lock within an interrupt
    handler. */
-void
-lock_release (struct lock *lock) {//donations 회수
-	//ASSERT (lock != NULL);
-	ASSERT (lock_held_by_current_thread (lock));
+// void
+// lock_release (struct lock *lock) {//donations 회수
+// 	//ASSERT (lock != NULL);
+// 	ASSERT (lock_held_by_current_thread (lock));
 	
-	remove_lock(lock);//
-	restore_priority();
+// 	remove_lock(lock);//
+// 	restore_priority();
 
-	lock->holder = NULL;
-	sema_up (&lock->semaphore);
-}
+// 	lock->holder = NULL;
+// 	sema_up (&lock->semaphore);
+// }
 
 /* Returns true if the current thread holds LOCK, false
    otherwise.  (Note that testing whether some other thread holds
@@ -375,21 +376,55 @@ void remove_lock(struct lock *lock){
 	struct list_elem *e= list_begin(&cur->donations);
 	while(e!=list_end(&cur->donations)){
 		struct thread *t = list_entry(e,struct thread,donations_elem );
-		if(t->wait_on_lock == lock){
-			e = list_remove(e); 
-		}else{
-			e = list_next(e);
-		}
+		struct list_elem *next = list_next(e);  // 미리 다음 요소 저장
+
+		if (t->wait_on_lock == lock)
+			list_remove(e);
+
+		e = next;  // 다음 반복으로 이동
 	}
 }
 void restore_priority(void){
+	struct thread *t = thread_current();
+    t->priority = t->init_priority;
+
+    if (list_empty(&t->donations))
+        return;
+
+    list_sort(&t->donations, cmp_priority, NULL);
+
+    struct list_elem *max_elem = list_front(&t->donations);
+    struct thread *max_thread = list_entry(max_elem, struct thread, donations_elem);
+
+    if (t->priority < max_thread->priority)
+        t->priority = max_thread->priority;
+
+}
+void donations_priority(void) {
 	struct thread *cur = thread_current();
-	cur->priority = cur ->init_priority;
-	if(!list_empty(&cur->donations)){
-		list_sort(&cur->donations,cmp_priority,NULL);
-		struct thread *top = list_entry(list_front(&cur->donations),struct thread,donations_elem);
-		if(top->priority > cur->priority){
-			cur->priority = top->priority;
-		}
+	int priority = cur->priority;
+
+	for (int i = 0; i < 8; i++) {
+		if (cur->wait_on_lock == NULL)
+			break;
+
+		struct thread *holder = cur->wait_on_lock->holder;
+		if (holder == NULL)
+			break;
+
+		// 우선순위가 더 높을 때만 기부
+		if (holder->priority < priority)
+			holder->priority = priority;
+
+		cur = holder;
 	}
+}
+void lock_release(struct lock *lock){
+	ASSERT (lock != NULL);
+	ASSERT (lock_held_by_current_thread(lock)); // 이거 무슨뜻이야
+
+	lock ->holder = NULL;
+	remove_lock(lock);
+	restore_priority();
+	sema_up(&lock->semaphore);
 }

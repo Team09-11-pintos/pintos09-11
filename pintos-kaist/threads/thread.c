@@ -73,6 +73,7 @@ bool cmp_priority (const struct list_elem*a,const struct list_elem *b,void *aus 
 void thread_sleep(int64_t ticks);
 void thread_awake(int64_t ticks);
 void thread_test_preemption(void);
+void remove_with_lock(struct lock *lock);
 
 
 /* T 가 유효한 thread 구조체를 가리키면 true 반환. */
@@ -302,7 +303,9 @@ void thread_yield (void) {
    9. 우선순위 관련 (과제에서 확장)
    ============================= */
 void thread_set_priority (int new_priority) {
-    thread_current ()->init_priority = new_priority;    // 단순 대입 (기본 구현)
+    //thread_current ()->init_priority = new_priority;    // 단순 대입 (기본 구현)
+    thread_current()->priority=new_priority;
+    thread_current()->init_priority=new_priority;
     restore_priority();
     thread_test_preemption();
 }
@@ -369,13 +372,12 @@ static void init_thread (struct thread *t, const char *name, int priority) {
     t->status = THREAD_BLOCKED;            // 최초 상태 BLOCKED
     strlcpy (t->name, name, sizeof t->name); // 이름 복사
     t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *); // 최상단 스택 준비
-
     t->priority = t->init_priority = priority;
-    list_init(&t->donations);
-    t->wait_on_lock=NULL;
-
-    //t->priority = priority;                // 우선순위 설정
     t->magic = THREAD_MAGIC;               // 무결성 체크용 값
+    t->wait_on_lock=NULL;
+    list_init(&t->donations);
+    //t->priority = priority;                // 우선순위 설정
+
 }
 
 /* =============================
@@ -550,6 +552,11 @@ bool cmp_priority(const struct list_elem *a,const struct list_elem *b,void *aux 
     //     return false;
     return st_a->priority > st_b->priority;
 }
+bool cmp_d_priority(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED){
+    struct thread *st_a=list_entry(a,struct thread,donations_elem);
+    struct thread *st_b=list_entry(b,struct thread,donations_elem);
+    return st_a->priority > st_b->priority;
+}
 
 void thread_sleep(int64_t ticks){//스레드를 재우는 함수
 	enum intr_level old_level=intr_disable();//이거 인터럽트 닫음
@@ -594,4 +601,16 @@ void thread_test_preemption(void){
     struct thread *ready = list_entry(list_front(&ready_list),struct thread,elem);
     if(thread_get_priority() < ready->priority)
         thread_yield();
+}
+void remove_with_lock(struct lock *lock){
+	struct thread *t = thread_current();
+	struct list_elem *cur = list_begin(&t->donations);
+	struct thread *cur_thread = NULL;
+	while (cur != list_end(&t->donations)){
+		cur_thread = list_entry(cur,struct thread,donations_elem);//이거 이해안감
+		if(cur_thread->wait_on_lock == lock){
+			list_remove(&cur_thread->donations_elem);// 이 donations_elem이 도네이션하나를 가리키는거지? 그냥 donations 는 리스트고
+		}
+		cur=list_next(cur);
+	}
 }

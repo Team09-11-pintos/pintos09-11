@@ -153,8 +153,14 @@ void thread_sleep(int64_t ticks);
 void thread_wakeup(int64_t ticks);
 bool cmp_priority (const struct list_elem*a,const struct list_elem *b,void *aus UNUSED);
 bool cmp_cond_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool cmp_d_priority(const struct list_elem *a,const struct list_elem *b,void *aux UNUSED);
 void thread_test_preemption(void);
 extern int64_t global_tick;
+void donations_priority(void);
+void refresh_priority(void);
+void remove_with_lock(struct lock *lock);
+
+
 
 
 
