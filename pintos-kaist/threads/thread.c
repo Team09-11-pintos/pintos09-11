@@ -28,8 +28,8 @@
 	that are ready to run but not actually running. */
 	static struct list ready_list;
 
-/*sleep state thread를 저장하기 위한 리스트*/
-static struct list sleep_list;
+	/*sleep state thread를 저장하기 위한 리스트*/
+	static struct list sleep_list;
 
 	/* Idle thread. */
 	static struct thread *idle_thread;
@@ -169,7 +169,7 @@ int64_t global_tick = INT64_MAX;
 }
 
 void
-thread_sleep (int new_local_tick){
+thread_sleep (int64_t new_local_tick){
 	struct thread *curr = thread_current ();
 
 	enum intr_level old_level;
@@ -518,6 +518,10 @@ thread_set_priority (int new_priority) {
 	t->original_priority = priority;
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));
+	
+	for(int i=0;i<128;i++){
+		t->file_table[i] = NULL;
+	}
 }
 
 	/* Chooses and returns the next thread to be scheduled.  Should
@@ -696,4 +700,23 @@ thread_set_priority (int new_priority) {
 		lock_release (&tid_lock);
 
 	return tid;
+}
+
+int
+find_descriptor(struct thread* t){
+	for(int i=3;i<128;i++){
+		if(t->file_table[i] == NULL){
+			return i;
+		}
+	}
+	return -1;
+}
+
+struct file*
+is_open_file(struct thread* t, int fd){
+	if(t->file_table[fd] != NULL){
+		return t->file_table[fd];
+	}else{
+		return NULL;
+	}
 }

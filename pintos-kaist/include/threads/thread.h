@@ -92,19 +92,19 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	int64_t wakeup_tick;				/* local tick. */
 	char name[16];                      /* Name (for debugging purposes). */
-	int64_t wakeup_tick;				/*new field for local ticks*/
 	int priority;                       /* Priority. */
 	int original_priority;				/*store origin priority*/
 	struct list donations;				/*inherited priority list*/
 	struct lock *wait_on_lock;
 	struct list_elem donation_elem;
-
+ 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	struct file *file_table[128]; // 현재 스레드가 열고 있는 파일 목록
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -114,10 +114,6 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
-
-	struct lock *wait_on_lock; // 현재 어떤 lock을 기다리고 있는지 저장 용
-	struct list donations; // 자신에게 기부한 스레드들 리스트 저장 용
-	struct list_elem d_elem;
 };
 
 extern int64_t global_tick;
@@ -166,5 +162,6 @@ bool compare_elem_for_sema(const struct list_elem *a, const struct list_elem *b,
 void preem(struct thread* t);
 void thread_donate_priority(struct thread *t, struct thread *donated);
 void sort_ready_list();
+int find_descriptor(struct thread* t);
 
 #endif /* threads/thread.h */
