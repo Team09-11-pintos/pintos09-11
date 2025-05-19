@@ -43,6 +43,8 @@ process_create_initd (const char *file_name) {
 	char *fn_copy;
 	tid_t tid;
 
+	// printf("%s", *file_name);
+
 	/* Make a copy of FILE_NAME.
 	 * Otherwise there's a race between the caller and load(). */
 	fn_copy = palloc_get_page (0);
@@ -158,6 +160,13 @@ error:
 	thread_exit ();
 }
 
+void
+init_parse(char *parse[]){
+	for(int i=0;i<64;i++){
+		parse[i]= NULL;
+	}
+}
+
 /* Switch the current execution context to the f_name.
  * Returns -1 on fail. */
 int
@@ -176,8 +185,51 @@ process_exec (void *f_name) {
 	/* We first kill the current context */
 	process_cleanup ();
 
+	// printf("%s\n", *file_name);
+
+	char *save_ptr;
+	char* parse[64];
+
+	init_parse(parse);
+
+	char *token = strtok_r(file_name, " ", &save_ptr);
+	parse[0] = token;
+	int argc = 1;
+
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (parse[0], &_if);
+
+	while(token != NULL){
+		token = strtok_r(NULL, " ", &save_ptr);
+		if(token == NULL) break;
+		parse[argc++] = token;
+	}
+
+	char* argv[argc];
+	size_t size;
+	for (int j = argc-1;j>=0;j--){
+		size = strlen(parse[j])+1;
+		_if.rsp -= size;
+		argv[j]=_if.rsp;
+		memcpy(_if.rsp, parse[j],size);
+	}
+	
+	_if.rsp = _if.rsp & ~0x7;
+	
+	_if.rsp -= sizeof(char *);
+	memset(_if.rsp, 0, sizeof(char *));
+
+	for(int j = argc -1; j>=0 ;j--){
+		_if.rsp -= sizeof(char *);
+		memcpy(_if.rsp, &argv[j], sizeof(char *));
+	}
+
+	_if.R.rsi = _if.rsp;
+	_if.R.rdi = argc;
+	
+	_if.rsp -= sizeof(void *);
+	memset(_if.rsp, 0, sizeof(char *));
+
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
@@ -204,6 +256,10 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+
+	while(1){
+
+	}
 	return -1;
 }
 
@@ -416,6 +472,9 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+
+	//여기서 argument passing 구현하기
+
 
 	success = true;
 

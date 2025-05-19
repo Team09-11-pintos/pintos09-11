@@ -21,7 +21,7 @@
 static int64_t ticks;
 
 /* 남은 스레드 중 local_tick 최소 값*/
-static int64_t global_tick;
+int64_t global_tick;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */

@@ -245,6 +245,7 @@ run_task (char **argv) {
 		run_test (task);
 	} else {
 		process_wait (process_create_initd (task));
+		
 	}
 #else
 	run_test (task);
@@ -275,6 +276,8 @@ run_actions (char **argv) {
 #endif
 		{NULL, 0, NULL},
 	};
+
+	// printf("%s", **argv);
 
 	while (*argv != NULL) {
 		const struct action *a;
