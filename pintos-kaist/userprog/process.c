@@ -162,33 +162,67 @@ error:
  * Returns -1 on fail. */
 int
 process_exec (void *f_name) {
-	char *file_name = f_name;
-	bool success;
-
-	/* We cannot use the intr_frame in the thread structure.
-	 * This is because when current thread rescheduled,
-	 * it stores the execution information to the member. */
-	struct intr_frame _if;
-	_if.ds = _if.es = _if.ss = SEL_UDSEG;
-	_if.cs = SEL_UCSEG;
-	_if.eflags = FLAG_IF | FLAG_MBS;
-
-	/* We first kill the current context */
-	process_cleanup ();
-
+    char *file_name = f_name;
+    bool success;
+    /* We cannot use the intr_frame in the thread structure.
+     * This is because when current thread rescheduled,
+     * it stores the execution information to the member. */
+    struct intr_frame _if;
+    _if.ds = _if.es = _if.ss = SEL_UDSEG;
+    _if.cs = SEL_UCSEG;
+    _if.eflags = FLAG_IF | FLAG_MBS;
+    /* We first kill the current context */
+    process_cleanup ();
+    
+	/*parsing*/
+    char * save_ptr;
+    char* L_token[64];
+    int count = 0;
+    char *token = strtok_r(file_name, " ", &save_ptr);
+    while(token != NULL && count < 64){
+        L_token[count++] = token;
+        token = strtok_r(NULL, " ", &save_ptr);
+    }
+    
 	/* And then load the binary */
-	success = load (file_name, &_if);
+    success = load (L_token[0], &_if);
 
-	/* If load failed, quit. */
-	palloc_free_page (file_name);
-	if (!success)
-		return -1;
 
-	/* Start switched process. */
-	do_iret (&_if);
-	NOT_REACHED ();
+    
+	/*passing data*/
+	int64_t addr_list[64];
+    for(int i = 0; L_token[i] != NULL; i++){
+        _if.rsp -= strlen(L_token[i])+1;//null 포함
+        memcpy(_if.rsp, L_token[i], strlen(L_token[i])+1);
+		addr_list[i] = (char *)_if.rsp;
+    }
+
+	/*word align*/
+	_if.rsp -= _if.rsp % 8;
+
+    /*passing address*/
+	_if.rsp -= sizeof(char *);
+	memset(_if.rsp, 0, sizeof(char *));
+
+	for(int i = count; i >= 0; i--){
+		_if.rsp -= sizeof(char *);
+		memcpy(_if.rsp, &addr_list[i], sizeof(char *));
+	}
+
+	_if.rsp -= sizeof(char *);
+	memset(_if.rsp, 0, sizeof(char *));
+
+    /* If load failed, quit. */
+    palloc_free_page (file_name);
+    if (!success)
+        return -1;
+		
+	_if.R.rdi = count;
+	_if.R.rsi = _if.rsp;
+    /* Start switched process. */
+    do_iret (&_if);
+    NOT_REACHED ();
 }
-
 
 /* Waits for thread TID to die and returns its exit status.  If
  * it was terminated by the kernel (i.e. killed due to an
@@ -199,12 +233,15 @@ process_exec (void *f_name) {
  *
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
-int
-process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
-	return -1;
+int process_wait(tid_t child_tid UNUSED)
+{
+  /* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
+   * XXX:       to add infinite loop here before
+   * XXX:       implementing the process_wait. */
+  while(true)
+  {
+  }
+  return -1;
 }
 
 /* Exit the process. This function is called by thread_exit (). */
