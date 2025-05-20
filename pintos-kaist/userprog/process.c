@@ -52,8 +52,11 @@ process_create_initd (const char *file_name) {
 		return TID_ERROR;
 	strlcpy (fn_copy, file_name, PGSIZE);
 
+	char *save_ptr;
+	char * name = strtok_r(file_name, " ", &save_ptr);
+
 	/* Create a new thread to execute FILE_NAME. */
-	tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
+	tid = thread_create (name, PRI_DEFAULT, initd, fn_copy);
 	if (tid == TID_ERROR)
 		palloc_free_page (fn_copy);
 	return tid;
@@ -78,6 +81,10 @@ initd (void *f_name) {
 tid_t
 process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 	/* Clone current thread to new thread.*/
+
+
+
+
 	return thread_create (name,
 			PRI_DEFAULT, __do_fork, thread_current ());
 }
@@ -150,6 +157,20 @@ __do_fork (void *aux) {
 	 * TODO:       in include/filesys/file.h. Note that parent should not return
 	 * TODO:       from the fork() until this function successfully duplicates
 	 * TODO:       the resources of parent.*/
+
+	
+	struct file ** parent_ft = parent->file_table;
+
+	for(int i=0;i<64;i++){
+		struct file *pf = parent_ft[i];
+		if(pf == NULL){
+			current->file_table[i]=NULL;
+			continue;
+		}
+		lock_acquire(&file_lock);
+		current->file_table[i] = file_duplicate(pf);
+		lock_release(&file_lock);
+	}
 
 	process_init ();
 
@@ -257,7 +278,7 @@ process_wait (tid_t child_tid UNUSED) {
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
 
-	while(1){
+	for(int i=0;i<800000000;i++){
 
 	}
 	return -1;

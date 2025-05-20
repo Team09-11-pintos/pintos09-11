@@ -90,6 +90,7 @@ struct thread {
 	/* Owned by thread.c. */
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
+	enum thread_status exit_status;          /* Thread state. */
 	int64_t wakeup_tick;				/* local tick. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
@@ -104,7 +105,7 @@ struct thread {
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
-	struct file *file_table[128]; // 현재 스레드가 열고 있는 파일 목록
+	struct file *file_table[64]; // 현재 스레드가 열고 있는 파일 목록
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -133,7 +134,7 @@ void thread_print_stats (void);
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
 void thread_sleep(int64_t ticks);
-void find_wake_up_thread(int64_t ticks);
+void wakeup_thread(int64_t ticks);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
@@ -163,5 +164,7 @@ void preem(struct thread* t);
 void thread_donate_priority(struct thread *t, struct thread *donated);
 void sort_ready_list();
 int find_descriptor(struct thread* t);
+
+struct file* is_open_file(struct thread* t, int fd);
 
 #endif /* threads/thread.h */

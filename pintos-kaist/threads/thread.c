@@ -519,7 +519,7 @@ thread_set_priority (int new_priority) {
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));
 	
-	for(int i=0;i<128;i++){
+	for(int i=0;i<64;i++){
 		t->file_table[i] = NULL;
 	}
 }
@@ -704,7 +704,7 @@ thread_set_priority (int new_priority) {
 
 int
 find_descriptor(struct thread* t){
-	for(int i=3;i<128;i++){
+	for(int i=2;i<64;i++){
 		if(t->file_table[i] == NULL){
 			return i;
 		}
