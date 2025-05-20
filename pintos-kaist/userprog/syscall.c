@@ -4,9 +4,11 @@
 #include "threads/vaddr.h"
 #include "lib/kernel/console.h"
 #include "filesys/file.h"
+#include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/mmu.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
@@ -98,16 +100,31 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax = sys_create(filename, size);
 			break;
 		}
+		case SYS_FORK:{
+			break;
+		}
+		default:{
+			sys_exit(-1);
+			break;
+		}
 	}
 
 	// thread_exit ();
 }
 
+tid_t
+sys_fork(const char *thread_name){
+
+}
+
 bool
 sys_create(char* filename, unsigned size){
-	if(!is_user_vaddr(filename) || !is_user_vaddr(filename+size-1)){
-		return -1;
+	struct thread* curr = thread_current();
+	if(!is_user_vaddr(filename) || pml4_get_page(curr->pml4, filename) ==NULL || filename == NULL){
+		sys_exit(-1);
 	}
+
+	if(strlen(filename) > 14) return 0;
 
 	size_t init_size = (size_t) size;
 	lock_acquire(&file_lock);
@@ -118,8 +135,9 @@ sys_create(char* filename, unsigned size){
 
 int
 sys_open(char* filename){
-	if(!is_user_vaddr(filename)){
-		return -1;
+	struct thread * curr = thread_current();
+	if(!is_user_vaddr(filename) || pml4_get_page(curr->pml4, filename) == NULL || filename == NULL){
+		sys_exit(-1);
 	}
 
 	struct thread *cur = thread_current();
@@ -135,8 +153,6 @@ sys_open(char* filename){
 	lock_release(&file_lock);
 	// intr_set_level(old);
 	if(file == NULL){
-		
-		printf("%s No file in directory\n", filename);
 		return -1;
 	}
 	
@@ -166,12 +182,13 @@ sys_exit(int status){
 
 int
 sys_read(int fd, void *buffer, size_t size){
+	struct thread* curr = thread_current();
 	if(size == 0){
 		return 0;
 	}
 
-	if(!is_user_vaddr(buffer)){
-		return -1;
+	if(!is_user_vaddr(buffer) || pml4_get_page(curr->pml4, buffer)==NULL){
+		sys_exit(-1);
 	}
 
 	if((fd<0) || (fd>=64)){
@@ -201,8 +218,9 @@ sys_read(int fd, void *buffer, size_t size){
 
 int
 sys_write(int fd, void* buf, size_t size){
-	if(!is_user_vaddr(buf) || !is_user_vaddr((uint8_t *)buf + size - 1)){
-		return -1;
+	struct thread *curr = thread_current();
+	if(!is_user_vaddr(buf) || pml4_get_page(curr->pml4, buf)==NULL){
+		sys_exit(-1);
 	}
 	if((fd<=0) || (fd>=64)){
 		return -1;
@@ -217,12 +235,10 @@ sys_write(int fd, void* buf, size_t size){
 		struct file* file_addr = is_open_file(curr, fd);
 		
 		if(file_addr == NULL){
-			printf("Is Here!\n");
 			return -1;
 		}
 
 		lock_acquire(&file_lock);
-		printf("okokokok\n");
 		int32_t written = file_write(file_addr, buf, size);
 		lock_release(&file_lock);
 		if(written < 0) return -1;
@@ -247,8 +263,9 @@ sys_close(int fd){
 
 bool
 sys_remove(char* filename){
-	if(!is_user_vaddr(filename)){
-		return -1;
+	struct thread* curr = thread_current();
+	if(!is_user_vaddr(filename) || pml4_get_page(curr->pml4, filename) == NULL){
+		sys_exit(-1);
 	}
 
 	lock_acquire(&file_lock);
