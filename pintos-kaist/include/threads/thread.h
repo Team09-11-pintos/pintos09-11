@@ -5,6 +5,9 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+
+#include "threads/synch.h"
+
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -26,6 +29,12 @@ typedef int tid_t;
 #define PRI_MIN 0                       /* 최소 우선순위 */
 #define PRI_DEFAULT 31                  /* 기본 우선순위 */
 #define PRI_MAX 63                      /* 최대 우선순위 */
+
+/* 파일 디스크립터 테이블의 최대 크기 설정*/
+#define FDT_PAGES 3 //ftd를 할당할 페이지 수 (3)
+#define FDCOUNT_LIMIT FDT_PAGES * (1<<9) //512개의 포인터. 즉 한페이지에 512 파일포인터 저장가능
+//총 파일 디스크립터 수 제한 -> 1536
+
 
 /* 커널 스레드 또는 사용자 프로세스
  *
@@ -94,10 +103,17 @@ struct thread {
 
 	/* thread.c & synch.c 공동 사용 영역 */
 	struct list_elem elem;              /* run queue 혹은 wait list 노드 */
+	struct file ** file_table;
+	struct list child_list;
+	
 
 #ifdef USERPROG
 	/* userprog/process.c 소유 영역 */
 	uint64_t *pml4;                     /* 4단계 페이지 맵 */
+	int exit_status;
+	int fd_idx; //파일 디스크립터 인덱스
+	struct file **fdt; // 파일 디스크립터 테이블
+	struct thread *parent;
 #endif
 #ifdef VM
 	/* 해당 스레드가 소유한 전체 가상 메모리 정보 */
@@ -109,7 +125,15 @@ struct thread {
 	unsigned magic;                     /* 스택 오버플로 감지용 값 */
 
 	/* 시스템콜 */
-	int exit_status;
+	int exit_status;//스레드 종료시 종료 상태 저장
+};
+struct child{
+	tid_t child_tid;//자식 스레드의 고유 ID(식별자)
+	bool is_waited;// 두번 선언되었는지 확인
+	bool is_exit;//자식 종료 여부(부모확인용)
+	struct list_elem elem;//리스트 삽입용
+	int exit_status;//자식이 종료되면서 부모에게 넘길 값
+	struct semaphore sema;//부모가 wait하기위해 필요
 };
 
 extern int64_t global_tick;
@@ -147,7 +171,13 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+void wakeup_thread (int64_t tick);
+void thread_sleep (int64_t new_local_tick);
 
 void do_iret (struct intr_frame *tf);
+
+struct file* is_open_file(struct thread* t, int fd);
+int find_descriptor(struct thread* t);
+struct thread *get_child_process(int pid);
 
 #endif /* threads/thread.h */

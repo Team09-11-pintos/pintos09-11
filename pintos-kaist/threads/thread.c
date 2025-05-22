@@ -41,6 +41,8 @@ static struct lock tid_lock;
 /* 파괴 요청이 들어온 스레드 목록 */
 static struct list destruction_req;
 
+//static struct list child_list;.//////
+
 /* 통계용 카운터 */
 static long long idle_ticks;    /* Idle 상태로 보낸 타이머 틱 수 */
 static long long kernel_ticks;  /* 커널 스레드에서 보낸 타이머 틱 수 */
@@ -106,6 +108,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&sleep_list);
 	list_init (&destruction_req);
+	list_init (&child_list);
 
 	/* 현재 실행 중인 코드를 'main' 스레드로 등록 */
 	initial_thread = running_thread ();
@@ -262,6 +265,12 @@ thread_create (const char *name, int priority,
 
 	/* 현재 스레드보다 우선순위 높으면 즉시 양보 */
 	preempt_priority ();
+	#ifdef USERPROG
+		t->fd_idx = 3;
+		t->fdt = palloc_get_multiple(PAL_ZERO,FDT_PAGES);
+		if (t->fdt == NULL)
+			return TID_ERROR;
+	#endif
 
 	return tid;
 }
@@ -451,6 +460,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original_priority = priority;
 	t->wait_on_lock = NULL;
 	list_init (&t->donations);
+	list_init(&t->child_list);
+#ifdef USERPROG
+t->exit_status = 0;
+#endif
 }
 
 /* run queue가 비어 있으면 idle 반환 */
@@ -628,4 +641,22 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+int
+find_descriptor(struct thread* t){
+	for(int i=3;i<128;i++){
+		if(t->file_table[i] == NULL){
+			return i;
+		}
+	}
+	return -1;
+}
+
+struct file*
+is_open_file(struct thread* t, int fd){
+	if(t->file_table[fd] != NULL){
+		return t->file_table[fd];
+	}else{
+		return NULL;
+	}
 }

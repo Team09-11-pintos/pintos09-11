@@ -31,6 +31,8 @@ static void initd (void *f_name);
 /* fork 내부 동작을 수행하는 실제 스레드 함수 */
 static void __do_fork (void *);
 
+struct thread *get_child_process(int pid);
+
 /* initd 및 기타 프로세스를 위한 공통 프로세스 초기화 함수 */
 static void
 process_init (void) {
@@ -44,7 +46,7 @@ process_init (void) {
  * 반드시 한 번만 호출되어야 함에 유의하세요. */
 tid_t
 process_create_initd (const char *file_name) {
-    char *fn_copy;
+    char *fn_copy,*name;
     tid_t tid;
 
     /* FILE_NAME의 복사본을 만듭니다.
@@ -54,11 +56,28 @@ process_create_initd (const char *file_name) {
         return TID_ERROR;
     strlcpy (fn_copy, file_name, PGSIZE);
 
+    char* save_ptr;
+    strtok_r(file_name," ",&save_ptr); // 이걸로 파일전체이름이 아니라 파일이름만 파싱함
+
     /* FILE_NAME을 실행할 새 스레드를 생성합니다. */
     tid = thread_create (file_name, PRI_DEFAULT, initd, fn_copy);
-    if (tid == TID_ERROR)
+    if (tid == TID_ERROR){
         palloc_free_page (fn_copy);
-    return tid;
+        return TID_ERROR;
+    }
+#ifdef USERPROG
+    // struct thread *parent = thread_current();
+    // struct child *c = malloc(sizeof(child));
+    // c->child_tid = tid;
+    // c->is_waited = false;
+    // c->is_exit = false;
+    // sema_init(&c->sema,0);
+    // list_push_back(&parent->child_list,&c->elem);
+    // struct thread *child_thread=get_child_thread_tid(tid);
+    // child_thread->my_child=c;
+
+#endif
+return tid;
 }
 
 /* 첫 번째 사용자 프로세스를 시작하는 스레드 함수 */
@@ -175,37 +194,51 @@ process_exec (void *f_name) {
     process_cleanup ();
 
     /*parsing*/
-    char * save_ptr;
-    char* L_token[64];
-    int count = 0;
+    char * save_ptr;//strtok_r에 쓸 포인터변수.
+    char* L_token[64];//단어별로 저장할 배열
+    int argc = 0;
     char *token = strtok_r(file_name, " ", &save_ptr);
-    while(token != NULL && count < 65){
-        L_token[count++] = token;
+    while(token != NULL && argc < 64){
+        L_token[argc++] = token;//단어 저장
         token = strtok_r(NULL, " ", &save_ptr);
     }
 
-    
+    //thread_set_name(L_token[0]);
     /* 바이너리를 로드합니다. */
-    success = load (file_name, &_if);
-    //argument_stack();
+    success = load (L_token[0], &_if);
+
     /*passing*/
-    for(int i = 0; L_token[i] != NULL; i++){
+    char* argv[argc];
+    for (int i = argc - 1; i >= 0; i--) {
         _if.rsp -= strlen(L_token[i])+1;//null 포함
-        _if.rsp = *L_token[i];
+        //이게 잘못된듯 문자열주소가 아니라 첫 문자만 저장 _if.rsp = *L_token[i];
+        memcpy(_if.rsp, L_token[i],strlen(L_token[i])+1);
+        argv[i]=_if.rsp;
     }
-    int64_t addr_list[64];
-    int a = 0;
-    for(int i = count; i == 0; i--){
-        addr_list[a++]= L_token[i];
+    _if.rsp -= _if.rsp %8; // 패딩
+    //패싱
+    _if.rsp -= sizeof(char *);
+    memset(_if.rsp,0,sizeof(char *));
+
+    // addr_list를 역순으로 push → 이게 argv[i]
+    for (int i = argc - 1; i >= 0; i--) {
+        _if.rsp -= sizeof(char *);
+        memcpy(_if.rsp, &argv[i], sizeof(char *));//+1?
     }
-    _if.rsp -= sizeof(addr_list);
-    _if.rsp = addr_list;
+
+    _if.R.rdi = argc;
+    _if.R.rsi = _if.rsp;
+
+    _if.rsp -= sizeof(char *);
+    memset(_if.rsp,0,sizeof(char *));
+
+    
 
     /* 로드 실패 시 종료합니다. */
     palloc_free_page (file_name);
     if (!success)
         return -1;
-
+    
     /* 프로세스를 시작합니다. */
     do_iret (&_if);
     NOT_REACHED ();//do_iret이 리턴값을 제대로 못해 커널패드가 일어난것
@@ -219,20 +252,57 @@ process_exec (void *f_name) {
  *
  * 이 함수는 문제 2-2에서 구현됩니다. 현재는 아무것도 하지 않습니다. */
 int
-process_wait (tid_t child_tid UNUSED) {
+process_wait (tid_t child_tid) {
     /* XXX: 힌트) pintos가 process_wait(initd)에서 종료되므로
      * XXX:       구현 전에는 여기에 무한 루프를 두기를 권장합니다. */
+    // for (int i = 0; i < 1000000000; i++){
+    // }
+    struct thread *cur = thread_current();//현재 실행중인 스레드의 포인터를 가져온다
+    struct list_elem *e;//list_elem을 참조하기 위해 e선언 -> 자식리스트를 순회하기 위한 리스트 요소 포인터
+    for(e=list_begin(&cur->child_list);e!=list_end(&cur->child_list);e=list_next(e)){//child_list에 현재 child_tid가 있는지 확인 -> child_list에서 자식 스레드를 찾기 위한 반복문
+        struct child *c=list_entry(e,struct child,elem);//e로 참조해 child 정보를 불러온다 -> 리스트요소 e를 child 구조체로 변환하여 정보에 접근
+        if(c->child_tid==child_tid){//해당 tid를 가진 자식이라면? -> 해당 child_tid를 가진 자식 프로세스를 찾은 경우
+            if(c->is_waited)//이미 대기중인 자식이라면
+                return -1;//바로 리턴-1
+            c->is_waited = true;//대기중이 아니라면 대기시키기 위해 true로 변경
+            if(!c->is_exit){//만약 종료되기까지 시간이 남았다면
+                sema_down(&c->sema);//부모스레드를 블럭처리 (wait시킴)
+            }   
+            return c->exit_status;//자식 스레드의 종료 상태를 반환
+        }
+    }
+    // struct thread *child = get_child_process(child_tid);
+    // if (child == NULL)
+    //     return -1;
+    // sema_down()
+    // return exit_status;
     return -1;
 }
+    
+
+
 
 /* 프로세스를 종료합니다. thread_exit()에서 호출됩니다. */
 void
 process_exit (void) {
-    struct thread *curr = thread_current ();
+    struct thread *cur = thread_current ();
     /* TODO: 여기에 코드 작성
      * TODO: 프로세스 종료 메시지 구현 (project2/process_termination.html 참고)
      * TODO: 프로세스 자원 정리를 이곳에 구현하는 것을 권장합니다. */
-
+    struct thread *parent = cur->parent;
+    if(parent!=NULL){
+        struct list *clist = &parent->child_list;
+        struct list_elem *e;
+        for(e=list_begin(clist);e!=list_end(clist);e=list_next(e)){
+            struct child *c = list_entry(e,struct child,elem);
+            if(c->child_tid==cur->tid){//자신에 해당하는 child 구조체를 찾은 경우
+                c->exit_status= cur->exit_status;
+                c->is_exit=true;
+                sema_up(&c->sema);//부모가 wait이면 깨운다
+                break;
+            }
+        }
+    }
     process_cleanup ();
 }
 
@@ -617,3 +687,40 @@ setup_stack (struct intr_frame *if_) {
 }
 #endif /* VM */
 
+struct thread *get_child_process(int pid){
+    struct thread *cur = thread_current();
+    struct thread *t;
+    for(struct list_elem *e = list_begin(&cur->child_list); e != list_end(&cur->child_list); e = list_next(e)) {
+        t = list_entry(e, struct child, elem);
+
+        if (pid == t->tid)
+            return t;
+    }
+
+    return NULL;
+}
+
+#ifdef USERPROG
+int process_add_file(struct file *f){
+    struct thread *cur = thread_current();
+    struct file **fdt = cur->fdt;
+    if(cur->fd_idx >= FDCOUNT_LIMIT)
+        return -1;
+    fdt[cur->fd_idx++] = f;
+    return cur->fd_idx -1;
+}
+struct file *process_get_file(int fd){//현재 스레드의 fd번째 파일 정보 얻기
+    struct thread *cur = thread_current();
+    if(fd >=FDCOUNT_LIMIT)
+        return NULL;
+    return cur->fdt[fd];
+}
+int process_close_file(fd){
+    struct thread *cur = thread_current();
+    if(fd>=FDCOUNT_LIMIT)
+        return -1;
+    cur->fdt[fd]=NULL;
+    return 0;
+}
+
+#endif

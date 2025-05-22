@@ -10,6 +10,7 @@
 
 /* The disk that contains the file system. */
 struct disk *filesys_disk;
+struct lock file_lock;
 
 static void do_format (void);
 
@@ -22,6 +23,7 @@ filesys_init (bool format) {
 		PANIC ("hd0:1 (hdb) not present, file system initialization failed");
 
 	inode_init ();
+	lock_init(&file_lock);
 
 #ifdef EFILESYS
 	fat_init ();
