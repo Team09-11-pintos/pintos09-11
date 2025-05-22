@@ -286,6 +286,7 @@ thread_create (const char *name, int priority,
 	c->is_exit = false;
 	c->exit_status = -1;
 	sema_init(&c->sema, 0);
+	t->my_self = c;
 	list_push_back(&cur->child_list, &c->elem);
 
 	/* Add to run queue. */

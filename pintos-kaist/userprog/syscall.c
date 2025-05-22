@@ -115,7 +115,7 @@ check_addr(const char *addr){
 }
 int
 wait(tid_t pid){
-	process_wait();
+	return process_wait();
 }
 int
 exec (const char *file){

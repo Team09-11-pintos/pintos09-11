@@ -285,7 +285,8 @@ process_exit (void) {
 	 * TODO: project2/process_termination.html).
 	 * TODO: We recommend you to implement process resource cleanup here. */
 	
-	process_cleanup ();    
+	process_cleanup ();
+
 }
 
 /* Free the current process's resources. */
