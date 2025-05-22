@@ -8,13 +8,20 @@
 #include "threads/flags.h"
 #include "intrinsic.h"
 #include "filesys/filesys.h"
+#include "lib/string.h"
+#include "threads/palloc.h"
+#include "filesys/file.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
 void exit (int status);
+void check_addr(const char *addr);
+int exec (const char *file);
 int sys_write(int fd, void* buf, size_t size);
 bool create(const char *file, unsigned initial_size);
 bool remove(const char *file);
+void seek(int fd, unsigned position);
+unsigned tell(int fd);
 
 /* System call.
  *
@@ -51,6 +58,15 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			exit(f->R.rdi);
 			break;
 
+		case SYS_EXEC:
+			if(exec(f->R.rdi) == -1)
+				exit(-1);
+			break;
+		
+		case SYS_WAIT:
+			wait(f->R.rdi);
+			break;
+
 		case SYS_WRITE:
 			{int fd = (int)f->R.rdi;
 			void *buf = (void*)f->R.rsi;
@@ -66,16 +82,60 @@ syscall_handler (struct intr_frame *f UNUSED) {
 		case SYS_REMOVE:
 			f->R.rax = remove(f->R.rdi);
 			break;
+
+		case SYS_SEEK:
+			seek((int)f->R.rdi, (unsigned)f->R.rsi);
+			break;
+
+		case SYS_TELL:
+			f->R.rax = tell(f->R.rdi);
+			break;
 	}
 
 }
 
-
 void exit (int status){//이건 값만 전달 0,-1,등 은 fork 부모가 받아서 씀
 	struct thread *cur = thread_current();
-	cur->exit_status = status;//구조체 추가후 종료된 시점의 status 저장
+	struct child *c;
+	c = cur->my_self;
+
+	if (status != -1 && c != NULL){ //exit status가 -1이 아니고 child가 존재할 때 
+		c->is_exit = true;			//child 구조체 안에 값들 수정
+		c->exit_status = status;
+		sema_up(&c->sema);
+	}
 	printf("%s: exit(%d)\n",cur->name,status);//로그
 	thread_exit();
+}
+
+void
+check_addr(const char *addr){
+	if (!is_user_vaddr(addr) || pml4_get_page(thread_current()->pml4, addr) == NULL)
+		exit(-1);
+}
+int
+wait(tid_t pid){
+	process_wait();
+}
+int
+exec (const char *file){
+	if (file == NULL)
+		exit(-1);
+	
+	check_addr(file);
+	
+	char *file_name = palloc_get_page(0);
+	if (file_name == NULL)
+		palloc_free_page(file_name);
+		exit(-1);
+	strlcpy(file_name, file, PGSIZE); //copy file, user->kernal
+
+	if (process_exec(file_name) == -1){
+		palloc_free_page(file_name);
+		exit(-1);
+	}
+	NOT_REACHED();
+	return -1;
 }
 
 int
@@ -122,3 +182,18 @@ remove(const char *file){
 	filesys_remove(file);
 }
 
+void
+seek(int fd, unsigned position){
+	struct file *f = thread_current()->file_table[fd];
+	if (f == NULL)
+		exit(-1);
+	file_seek(f, position);
+}
+
+unsigned
+tell(int fd){
+	struct file *f = thread_current()->file_table[fd];
+	if (f == NULL)
+		exit(-1);
+	file_tell(f);
+}

@@ -253,6 +253,7 @@ thread_create (const char *name, int priority,
 		thread_func *function, void *aux) {
 	struct thread *t;
 	tid_t tid;
+	struct thread *cur = thread_current();
 
 	ASSERT (function != NULL);
 
@@ -275,6 +276,17 @@ thread_create (const char *name, int priority,
 	t->tf.ss = SEL_KDSEG;
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
+
+	struct child *c = malloc(sizeof(struct child));
+	if (c == NULL){
+		return TID_ERROR;
+	}
+	c->child_tid = tid;
+	c->is_waited = false;
+	c->is_exit = false;
+	c->exit_status = -1;
+	sema_init(&c->sema, 0);
+	list_push_back(&cur->child_list, &c->elem);
 
 	/* Add to run queue. */
 	thread_unblock (t);
@@ -509,10 +521,12 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+	t->my_self = NULL;
 
 	t->original_priority = priority;
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));
+	list_init(&(t->child_list));
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should

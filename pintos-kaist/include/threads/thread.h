@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -99,10 +100,13 @@ struct thread {
 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
-	int exit_status;
+	struct list child_list;
+	struct child *my_self;	//본인의 child 구조체를 담음
+
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	struct file *file_table[64];
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -112,6 +116,15 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+};
+
+struct child {
+	tid_t child_tid;
+	bool is_waited;
+	bool is_exit;
+	int exit_status;
+	struct semaphore sema;
+	struct list_elem elem;
 };
 
 extern int64_t global_tick;
