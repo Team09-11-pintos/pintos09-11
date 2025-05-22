@@ -24,6 +24,12 @@ void sys_exit(int status);
 int sys_read(int fd, void *buffer, size_t size);
 int sys_write(int fd, void *buffer, size_t size);
 void sys_close(int fd);
+tid_t sys_fork(char* filename, struct intr_frame * if_);
+int sys_wait(tid_t tid);
+int sys_exec(const char *file);
+unsigned sys_tell(int fd);
+void sys_seek(int fd, unsigned position);
+
 
 /* System call.
  *
@@ -50,7 +56,7 @@ syscall_init (void) {
 	write_msr(MSR_SYSCALL_MASK,
 			FLAG_IF | FLAG_TF | FLAG_DF | FLAG_IOPL | FLAG_AC | FLAG_NT);
 
-	lock_init(&file_lock);
+	// lock_init(&file_lock);
 }
 
 /* The main system call interface */
@@ -61,6 +67,19 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	uint64_t syscall_type = f->R.rax;
 
 	switch(syscall_type){
+		case SYS_EXIT:
+			sys_exit(f->R.rdi);
+			break;
+		case SYS_EXEC:{
+			int result = sys_exec(f->R.rdi);
+			if(result == -1)
+				sys_exit(-1);
+			f->R.rax = result;	
+			break;
+		}
+		case SYS_WAIT:
+			f->R.rax = sys_wait(f->R.rdi);
+			break;
 		case SYS_OPEN:{
 			char * filename = (char*)f->R.rdi;
 			f->R.rax = sys_open(filename);
@@ -86,10 +105,6 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			f->R.rax= sys_read(fd,buf,size);
 			break;
 		}
-		case SYS_EXIT:{
-			sys_exit((int)f->R.rdi);
-			break;
-		}
 		case SYS_FILESIZE:{
 			f->R.rax = sys_filesize((int)f->R.rdi);
 			break;
@@ -101,10 +116,15 @@ syscall_handler (struct intr_frame *f UNUSED) {
 			break;
 		}
 		case SYS_FORK:{
+			f->R.rax = sys_fork((char *)f->R.rdi, f);
 			break;
 		}
-		default:{
-			sys_exit(-1);
+		case SYS_SEEK:{
+			sys_seek((int)f->R.rdi,(unsigned)f->R.rsi);
+			break;
+		}
+		case SYS_TELL:{
+			f->R.rax = sys_tell((int)f->R.rdi);
 			break;
 		}
 	}
@@ -112,9 +132,49 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	// thread_exit ();
 }
 
-tid_t
-sys_fork(const char *thread_name){
+int 
+sys_wait(tid_t pid){
+	return process_wait(pid);
+}
 
+int
+sys_exec(const char *file){
+
+	struct thread* curr = thread_current();
+	
+	if(!is_user_vaddr(file) || pml4_get_page(curr->pml4, file) ==NULL || file == NULL){
+		sys_exit(-1);
+	}
+	
+	char *file_name = palloc_get_page(0);
+	if (file_name == NULL)
+		palloc_free_page(file_name);
+		sys_exit(-1);
+	strlcpy(file_name, file, PGSIZE); //copy file, user->kernal
+
+	if (process_exec(file_name) == -1){
+		palloc_free_page(file_name);
+		sys_exit(-1);
+	}
+	NOT_REACHED();
+	return -1;
+}
+
+tid_t
+sys_fork(char *thread_name, struct intr_frame *if_){
+
+	struct thread * curr = thread_current();
+	if(!is_user_vaddr(thread_name) || pml4_get_page(curr->pml4, thread_name) ==NULL || thread_name == NULL){
+		sys_exit(-1);
+	}
+
+	tid_t child_tid = process_fork(thread_name, if_);
+	
+	if(child_tid < 0){
+		sys_exit(-1);
+	}
+
+	return child_tid;
 }
 
 bool
@@ -144,7 +204,7 @@ sys_open(char* filename){
 	//file descriptor 할당
 	int fd = find_descriptor(cur);
 	if(fd == -1){
-		return -1;
+		sys_exit(-1);
 	}
     
 	// enum intr_level old = intr_disable();
@@ -153,7 +213,7 @@ sys_open(char* filename){
 	lock_release(&file_lock);
 	// intr_set_level(old);
 	if(file == NULL){
-		return -1;
+		sys_exit(-1);
 	}
 	
 	cur->file_table[fd] = file;
@@ -174,9 +234,16 @@ sys_filesize(int fd){
 
 void
 sys_exit(int status){
-	struct thread* curr = thread_current();
-	curr->exit_status = status;
-	printf("%s: exit(%d)\n",curr->name,status);//로그
+	struct thread *cur = thread_current();
+	struct child *c;
+	c = cur->my_self;
+
+	if (status != -1 && c != NULL){ //exit status가 -1이 아니고 child가 존재할 때 
+		c->is_exit = true;			//child 구조체 안에 값들 수정
+		c->exit_status = status;
+		sema_up(&c->sema);
+	}
+	printf("%s: exit(%d)\n",cur->name,status);//로그
 	thread_exit();
 }
 
@@ -254,7 +321,7 @@ sys_close(int fd){
 	struct file *file = is_open_file(cur, fd);
 
 	if(file == NULL)
-		return -1;
+		sys_exit(-1);
 
 	lock_acquire(&file_lock);
 	file_close(file);	
@@ -273,4 +340,20 @@ sys_remove(char* filename){
 	lock_release(&file_lock);
 
 	return result;
+}
+
+void
+sys_seek(int fd, unsigned position){
+	struct file *f = thread_current()->file_table[fd];
+	if (f == NULL)
+		sys_exit(-1);
+	file_seek(f, position);
+}
+
+unsigned
+sys_tell(int fd){
+	struct file *f = thread_current()->file_table[fd];
+	if (f == NULL)
+		sys_exit(-1);
+	file_tell(f);
 }

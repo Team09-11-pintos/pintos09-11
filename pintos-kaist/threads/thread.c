@@ -253,6 +253,7 @@ void wakeup_thread(int64_t tick) {
 			thread_func *function, void *aux) {
 		struct thread *t;
 		tid_t tid;
+		struct thread * cur = thread_current();
 
 		ASSERT (function != NULL);
 
@@ -264,6 +265,10 @@ void wakeup_thread(int64_t tick) {
 		/* Initialize thread. */
 		init_thread (t, name, priority);
 		tid = t->tid = allocate_tid ();
+		struct child* child_init = create_child(tid);
+		t->my_self = child_init;
+		list_push_back(&cur->child_list, &child_init->elem);
+
 
 		/* Call the kernel_thread if it scheduled.
 		* Note) rdi is 1st argument, and rsi is 2nd argument. */
@@ -501,11 +506,11 @@ thread_set_priority (int new_priority) {
 
 	/* Does basic initialization of T as a blocked thread named
 	NAME. */
-	static void
-	init_thread (struct thread *t, const char *name, int priority) {
-		ASSERT (t != NULL);
-		ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
-		ASSERT (name != NULL);
+static void
+init_thread (struct thread *t, const char *name, int priority) {
+	ASSERT (t != NULL);
+	ASSERT (PRI_MIN <= priority && priority <= PRI_MAX);
+	ASSERT (name != NULL);
 
 	memset (t, 0, sizeof *t);
 	t->status = THREAD_BLOCKED;
@@ -514,10 +519,12 @@ thread_set_priority (int new_priority) {
 	t->priority = priority;
 	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;
+	t->my_self = NULL;
 
 	t->original_priority = priority;
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));
+	list_init(&(t->child_list));
 	
 	for(int i=0;i<64;i++){
 		t->file_table[i] = NULL;
@@ -540,6 +547,8 @@ thread_set_priority (int new_priority) {
 	/* Use iretq to launch the thread */
 	void
 	do_iret (struct intr_frame *tf) {
+		
+		// PANIC("return value is : %d\n",tf->R.rax);
 		__asm __volatile(
 				"movq %0, %%rsp\n"
 				"movq 0(%%rsp),%%r15\n"
@@ -719,4 +728,21 @@ is_open_file(struct thread* t, int fd){
 	}else{
 		return NULL;
 	}
+}
+
+struct child*
+create_child(tid_t child_tid){
+	struct child * child = malloc(sizeof(struct child));
+
+	if(child == NULL){
+		return NULL;
+	}
+
+	child->child_tid =child_tid;
+	child->exit_status = -1;
+	child->is_exit = false;
+	child->is_waited = false;
+	sema_init(&child->sema,0);
+
+	return child;
 }
