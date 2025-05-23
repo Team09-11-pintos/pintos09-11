@@ -228,7 +228,8 @@ sys_open(char* filename){
 	lock_release(&file_lock);
 	// intr_set_level(old);
 	if(file == NULL){
-		sys_exit(-1);
+		// sys_exit(-1);
+		return -1;
 	}
 	
 	cur->file_table[fd] = file;
