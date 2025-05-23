@@ -375,6 +375,7 @@ cmp_priority(const struct list_elem *a, const struct list_elem *b,
 		ASSERT (!intr_context ());
 
 	#ifdef USERPROG
+		// printf("User programm try process exit\n");
 		process_exit ();
 	#endif
 

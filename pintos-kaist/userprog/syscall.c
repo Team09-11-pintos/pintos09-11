@@ -29,6 +29,7 @@ int sys_wait(tid_t tid);
 int sys_exec(const char *file);
 unsigned sys_tell(int fd);
 void sys_seek(int fd, unsigned position);
+void sys_halt(void);
 
 
 /* System call.
@@ -67,6 +68,10 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	uint64_t syscall_type = f->R.rax;
 
 	switch(syscall_type){
+		case SYS_HALT:{
+			sys_halt();
+			break;
+		}
 		case SYS_EXIT:
 			sys_exit(f->R.rdi);
 			break;
@@ -130,6 +135,11 @@ syscall_handler (struct intr_frame *f UNUSED) {
 	}
 
 	// thread_exit ();
+}
+
+void
+sys_halt(void){
+	power_off();
 }
 
 int 
@@ -238,12 +248,12 @@ sys_exit(int status){
 	struct child *c;
 	c = cur->my_self;
 
-	if (status != -1 && c != NULL){ //exit status가 -1이 아니고 child가 존재할 때 
+	if ( c != NULL){ //exit status가 -1이 아니고 child가 존재할 때 
 		c->is_exit = true;			//child 구조체 안에 값들 수정
 		c->exit_status = status;
+		printf("%s: exit(%d)\n",cur->name,status);//로그
 		sema_up(&c->sema);
 	}
-	printf("%s: exit(%d)\n",cur->name,status);//로그
 	thread_exit();
 }
 
@@ -264,9 +274,11 @@ sys_read(int fd, void *buffer, size_t size){
 
 	if(fd == 0){
 		char *buf = (char *) buffer;
+		lock_acquire(&file_lock);
 		for(int i=0;i<size;i++){
 			buf[i] = input_getc();
 		}
+		lock_release(&file_lock);
 		return size;
 	}else{
 		struct thread* cur = thread_current();
@@ -294,7 +306,9 @@ sys_write(int fd, void* buf, size_t size){
 	}
 
 	if(fd == 1){
+		lock_acquire(&file_lock);
 		putbuf((char *)buf, size);
+		lock_release(&file_lock);
 		return size;
 	}else if(fd >= 2){
 		// file descriptor 
