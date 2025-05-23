@@ -7,8 +7,10 @@
 #include "filesys/filesys.h"
 #include "filesys/inode.h"
 #include "threads/interrupt.h"
+#include "../include/lib/string.h"
 #include "threads/thread.h"
 #include "threads/mmu.h"
+#include "threads/palloc.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
@@ -156,14 +158,17 @@ sys_exec(const char *file){
 		sys_exit(-1);
 	}
 	
-	char *file_name = palloc_get_page(0);
-	if (file_name == NULL)
+	char *file_name = palloc_get_page(4);
+	if (file_name == NULL){
 		palloc_free_page(file_name);
 		sys_exit(-1);
+	}
+
+
 	strlcpy(file_name, file, PGSIZE); //copy file, user->kernal
 
 	if (process_exec(file_name) == -1){
-		palloc_free_page(file_name);
+		// palloc_free_page(file_name);
 		sys_exit(-1);
 	}
 	NOT_REACHED();

@@ -227,13 +227,11 @@ __do_fork (void *aux) {
 			break;
 		}
 	}
-	// sema_up(&aux_->child_info->sema);
+
 	free(aux);
 
-	// hex_dump(&if_, &if_, sizeof(if_), true);
 	/* Finally, switch to the newly created process. */
 	if (succ){
-		// printf("if_.RAX: %llx, if_.RSP: %llx\n", if_.R.rax, if_.rsp);
 		do_iret (&if_);	
 	}
 error:
@@ -279,6 +277,13 @@ process_exec (void *f_name) {
 	/* And then load the binary */
 	success = load (parse[0], &_if);
 
+	
+	if (!success){
+		palloc_free_page (file_name);
+		return -1;
+	}
+		
+
 	while(token != NULL){
 		token = strtok_r(NULL, " ", &save_ptr);
 		if(token == NULL) break;
@@ -312,9 +317,11 @@ process_exec (void *f_name) {
 
 
 	/* If load failed, quit. */
+	// palloc_free_page (file_name);
+	// if (!success)
+	// 	return -1;
+
 	palloc_free_page (file_name);
-	if (!success)
-		return -1;
 
 	/* Start switched process. */
 	do_iret (&_if);
