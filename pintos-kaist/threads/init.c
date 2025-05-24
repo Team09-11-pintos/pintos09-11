@@ -79,7 +79,7 @@ main (void) {
 
 	/* Initialize ourselves as a thread so we can use locks,
 	   then enable console locking. */
-	thread_init ();
+	thread_init (); // 커널
 	console_init ();
 
 	/* Initialize memory system. */
@@ -119,7 +119,7 @@ main (void) {
 	printf ("Boot complete.\n");
 
 	/* Run actions specified on kernel command line. */
-	run_actions (argv);
+	run_actions (argv); // 유저 프로그램
 
 	/* Finish up. */
 	if (power_off_when_done)
@@ -245,6 +245,7 @@ run_task (char **argv) {
 		run_test (task);
 	} else {
 		process_wait (process_create_initd (task));
+		
 	}
 #else
 	run_test (task);
@@ -275,6 +276,8 @@ run_actions (char **argv) {
 #endif
 		{NULL, 0, NULL},
 	};
+
+	// printf("%s", **argv);
 
 	while (*argv != NULL) {
 		const struct action *a;

@@ -5,6 +5,7 @@
 #include <list.h>
 #include <stdint.h>
 #include "threads/interrupt.h"
+#include "threads/synch.h"
 #ifdef VM
 #include "vm/vm.h"
 #endif
@@ -89,20 +90,24 @@ struct thread {
 	/* Owned by thread.c. */
 	tid_t tid;                          /* Thread identifier. */
 	enum thread_status status;          /* Thread state. */
+	enum thread_status exit_status;          /* Thread state. */
+	int64_t wakeup_tick;				/* local tick. */
 	char name[16];                      /* Name (for debugging purposes). */
-	int64_t wakeup_tick;				/*new field for local ticks*/
 	int priority;                       /* Priority. */
 	int original_priority;				/*store origin priority*/
 	struct list donations;				/*inherited priority list*/
 	struct lock *wait_on_lock;
 	struct list_elem donation_elem;
-
+ 
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	struct list child_list;
+	struct child * my_self;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
 	uint64_t *pml4;                     /* Page map level 4 */
+	struct file *file_table[64]; // 현재 스레드가 열고 있는 파일 목록
 #endif
 #ifdef VM
 	/* Table for whole virtual memory owned by thread. */
@@ -112,6 +117,15 @@ struct thread {
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
 	unsigned magic;                     /* Detects stack overflow. */
+};
+
+struct child {
+  tid_t child_tid;
+  bool is_waited;
+  bool is_exit;
+  int exit_status;
+  struct semaphore sema;
+  struct list_elem elem;
 };
 
 extern int64_t global_tick;
@@ -130,6 +144,8 @@ void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
+void thread_sleep(int64_t ticks);
+void wakeup_thread(int64_t ticks);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
@@ -152,4 +168,15 @@ int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
 
-#endif /* threads/thread.h */
+bool compare_elem_by_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+bool compare_elem_for_sema(const struct list_elem *a, const struct list_elem *b, void *aux);
+
+void preem(struct thread* t);
+void thread_donate_priority(struct thread *t, struct thread *donated);
+void sort_ready_list();
+int find_descriptor(struct thread* t);
+struct child* create_child(tid_t child);
+
+struct file* is_open_file(struct thread* t, int fd);
+
+#endif
