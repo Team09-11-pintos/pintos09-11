@@ -373,7 +373,7 @@ cmp_priority(const struct list_elem *a, const struct list_elem *b,
 	void
 	thread_exit (void) {
 		ASSERT (!intr_context ());
-
+		struct thread *cur = thread_current();
 	#ifdef USERPROG
 		// printf("User programm try process exit\n");
 		process_exit ();
@@ -519,10 +519,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->original_priority = priority;
-	t->magic = THREAD_MAGIC;
+	t->magic = THREAD_MAGIC;		
 	t->my_self = NULL;
 
-	t->original_priority = priority;
+	
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));
 	list_init(&(t->child_list));

@@ -1,5 +1,4 @@
 #include "userprog/syscall.h"
-#include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/vaddr.h"
 #include "lib/kernel/console.h"
@@ -8,21 +7,18 @@
 #include "filesys/inode.h"
 #include "threads/interrupt.h"
 #include "../include/lib/string.h"
-#include "threads/thread.h"
 #include "threads/mmu.h"
 #include "threads/palloc.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
 #include "intrinsic.h"
+#include <stdio.h>
+#include "threads/thread.h"
 
 void syscall_entry (void);
 void syscall_handler (struct intr_frame *);
-bool sys_create(char*filename, unsigned size);
-int sys_open(char *filename);
-bool sys_remove(char *filename);
-int sys_filesize(int fd);
-void sys_exit(int status);
+
 int sys_read(int fd, void *buffer, size_t size);
 int sys_write(int fd, void *buffer, size_t size);
 void sys_close(int fd);
@@ -32,6 +28,11 @@ int sys_exec(const char *file);
 unsigned sys_tell(int fd);
 void sys_seek(int fd, unsigned position);
 void sys_halt(void);
+bool sys_create(char*filename, unsigned size);
+int sys_open(char *filename);
+bool sys_remove(char *filename);
+int sys_filesize(int fd);
+
 
 
 /* System call.
@@ -304,6 +305,9 @@ sys_read(int fd, void *buffer, size_t size){
 int
 sys_write(int fd, void* buf, size_t size){
 	struct thread *curr = thread_current();
+	if(buf == NULL){
+		sys_exit(-1);
+	}
 	if(!is_user_vaddr(buf) || pml4_get_page(curr->pml4, buf)==NULL){
 		sys_exit(-1);
 	}
