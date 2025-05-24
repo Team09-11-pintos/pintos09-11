@@ -373,7 +373,7 @@ cmp_priority(const struct list_elem *a, const struct list_elem *b,
 	void
 	thread_exit (void) {
 		ASSERT (!intr_context ());
-		struct thread *cur = thread_current();
+		
 	#ifdef USERPROG
 		// printf("User programm try process exit\n");
 		process_exit ();
@@ -521,13 +521,13 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;		
 	t->my_self = NULL;
-
+	t->run_file = NULL;
 	
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));
 	list_init(&(t->child_list));
 	
-	for(int i=0;i<64;i++){
+	for(int i=0;i<127;i++){
 		t->file_table[i] = NULL;
 	}
 }
@@ -714,7 +714,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 
 int
 find_descriptor(struct thread* t){
-	for(int i=2;i<64;i++){
+	for(int i=2;i<127;i++){
 		if(t->file_table[i] == NULL){
 			return i;
 		}

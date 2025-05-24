@@ -205,7 +205,7 @@ __do_fork (void *aux) {
 	
 	struct file ** parent_ft = parent->file_table;
 
-	for(int i=0;i<64;i++){
+	for(int i=0;i<127;i++){
 		struct file *pf = parent_ft[i];
 		if(pf == NULL){
 			current->file_table[i]=NULL;
@@ -352,6 +352,7 @@ process_wait (tid_t child_tid UNUSED) {
 		e=list_next(e)){
 			struct child *c = list_entry(e, struct child, elem);
 			if (c->child_tid == child_tid && c->is_waited == false){
+				c->is_waited = true;  // add before sema_down
 				sema_down(&c->sema);
 				int result_status = c->exit_status;
 				list_remove(e);
@@ -360,21 +361,7 @@ process_wait (tid_t child_tid UNUSED) {
 			}
 	}
 	return -1;
-	// struct thread *cur = thread_current();//현재 실행중인 스레드의 포인터를 가져온다
-    // struct list_elem *e;//list_elem을 참조하기 위해 e선언 -> 자식리스트를 순회하기 위한 리스트 요소 포인터
-    // for(e=list_begin(&cur->child_list);e!=list_end(&cur->child_list);e=list_next(e)){//child_list에 현재 child_tid가 있는지 확인 -> child_list에서 자식 스레드를 찾기 위한 반복문
-    //     struct child *c=list_entry(e,struct child,elem);//e로 참조해 child 정보를 불러온다 -> 리스트요소 e를 child 구조체로 변환하여 정보에 접근
-    //     if(c->child_tid==child_tid){//해당 tid를 가진 자식이라면? -> 해당 child_tid를 가진 자식 프로세스를 찾은 경우
-    //         if(c->is_waited)//이미 대기중인 자식이라면
-    //             return -1;//바로 리턴-1
-    //         c->is_waited = true;//대기중이 아니라면 대기시키기 위해 true로 변경
-    //         if(!c->is_exit){//만약 종료되기까지 시간이 남았다면
-    //             sema_down(&c->sema);//부모스레드를 블럭처리 (wait시킴)
-    //         }   
-    //         return c->exit_status;//자식 스레드의 종료 상태를 반환
-    //     }
-    // }
-	// return -1;
+	
 }
 
 /* Exit the process. This function is called by thread_exit (). */
@@ -394,6 +381,26 @@ process_exit (void) {
 	// 		break;
 	// 	}
 	// }
+
+	// struct list_elem *e;
+	// for(e=list_begin(&curr->child_list);e!=list_end(&curr->child_list);e=list_next(e)){
+	// 	struct child* c = list_entry(e, struct child, elem);
+	// 	if(c==NULL)
+	// 		continue;
+	// 	else{
+	// 		list_remove(e);
+	// 		free(c);
+	// 	}
+	// }
+
+	// struct file** ft = curr->file_table;
+	// for(int i=0;i<127;i++){
+	// 	if(ft[i]==NULL){
+	// 		continue;
+	// 	}
+	// 	file_close(ft[i]);
+	// }
+	file_close (curr->run_file);
     process_cleanup ();
 }
 
@@ -519,6 +526,8 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	t->run_file = file;
+	file_deny_write(file);
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -602,7 +611,6 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
 	return success;
 }
 

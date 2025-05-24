@@ -275,7 +275,7 @@ sys_read(int fd, void *buffer, size_t size){
 		sys_exit(-1);
 	}
 
-	if((fd<0) || (fd>=64)){
+	if((fd<0) || (fd>=127)){
 		return -1;
 	}
 
@@ -311,7 +311,7 @@ sys_write(int fd, void* buf, size_t size){
 	if(!is_user_vaddr(buf) || pml4_get_page(curr->pml4, buf)==NULL){
 		sys_exit(-1);
 	}
-	if((fd<=0) || (fd>=64)){
+	if((fd<=0) || (fd>=127)){
 		return -1;
 	}
 
