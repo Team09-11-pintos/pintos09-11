@@ -255,22 +255,22 @@ int
 process_wait (tid_t child_tid) {
     /* XXX: 힌트) pintos가 process_wait(initd)에서 종료되므로
      * XXX:       구현 전에는 여기에 무한 루프를 두기를 권장합니다. */
-    // for (int i = 0; i < 1000000000; i++){
-    // }
-    struct thread *cur = thread_current();//현재 실행중인 스레드의 포인터를 가져온다
-    struct list_elem *e;//list_elem을 참조하기 위해 e선언 -> 자식리스트를 순회하기 위한 리스트 요소 포인터
-    for(e=list_begin(&cur->child_list);e!=list_end(&cur->child_list);e=list_next(e)){//child_list에 현재 child_tid가 있는지 확인 -> child_list에서 자식 스레드를 찾기 위한 반복문
-        struct child *c=list_entry(e,struct child,elem);//e로 참조해 child 정보를 불러온다 -> 리스트요소 e를 child 구조체로 변환하여 정보에 접근
-        if(c->child_tid==child_tid){//해당 tid를 가진 자식이라면? -> 해당 child_tid를 가진 자식 프로세스를 찾은 경우
-            if(c->is_waited)//이미 대기중인 자식이라면
-                return -1;//바로 리턴-1
-            c->is_waited = true;//대기중이 아니라면 대기시키기 위해 true로 변경
-            if(!c->is_exit){//만약 종료되기까지 시간이 남았다면
-                sema_down(&c->sema);//부모스레드를 블럭처리 (wait시킴)
-            }   
-            return c->exit_status;//자식 스레드의 종료 상태를 반환
-        }
+    for (int i = 0; i < 300000000; i++){
     }
+    // struct thread *cur = thread_current();//현재 실행중인 스레드의 포인터를 가져온다
+    // struct list_elem *e;//list_elem을 참조하기 위해 e선언 -> 자식리스트를 순회하기 위한 리스트 요소 포인터
+    // for(e=list_begin(&cur->child_list);e!=list_end(&cur->child_list);e=list_next(e)){//child_list에 현재 child_tid가 있는지 확인 -> child_list에서 자식 스레드를 찾기 위한 반복문
+    //     struct child *c=list_entry(e,struct child,elem);//e로 참조해 child 정보를 불러온다 -> 리스트요소 e를 child 구조체로 변환하여 정보에 접근
+    //     if(c->child_tid==child_tid){//해당 tid를 가진 자식이라면? -> 해당 child_tid를 가진 자식 프로세스를 찾은 경우
+    //         if(c->is_waited)//이미 대기중인 자식이라면
+    //             return -1;//바로 리턴-1
+    //         c->is_waited = true;//대기중이 아니라면 대기시키기 위해 true로 변경
+    //         if(!c->is_exit){//만약 종료되기까지 시간이 남았다면
+    //             sema_down(&c->sema);//부모스레드를 블럭처리 (wait시킴)
+    //         }   
+    //         return c->exit_status;//자식 스레드의 종료 상태를 반환
+    //     }
+    // }
     // struct thread *child = get_child_process(child_tid);
     // if (child == NULL)
     //     return -1;

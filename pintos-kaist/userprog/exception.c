@@ -108,7 +108,7 @@ page_fault (struct intr_frame *f) {
 	not_present = (f->error_code & PF_P) == 0;
 	write       = (f->error_code & PF_W) != 0;
 	user        = (f->error_code & PF_U) != 0;
-
+	exit(-1);
 #ifdef VM
 	/* 프로젝트 3(가상 메모리) 이후 처리 */
 	if (vm_try_handle_fault (f, fault_addr, user, write, not_present))

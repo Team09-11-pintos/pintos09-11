@@ -125,7 +125,7 @@ struct thread {
 	unsigned magic;                     /* 스택 오버플로 감지용 값 */
 
 	/* 시스템콜 */
-	int exit_status;//스레드 종료시 종료 상태 저장
+	//int exit_status;//스레드 종료시 종료 상태 저장
 };
 struct child{
 	tid_t child_tid;//자식 스레드의 고유 ID(식별자)

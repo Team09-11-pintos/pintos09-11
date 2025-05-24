@@ -108,7 +108,7 @@ thread_init (void) {
 	list_init (&ready_list);
 	list_init (&sleep_list);
 	list_init (&destruction_req);
-	list_init (&child_list);
+	list_init (&initial_thread->child_list);
 
 	/* 현재 실행 중인 코드를 'main' 스레드로 등록 */
 	initial_thread = running_thread ();
