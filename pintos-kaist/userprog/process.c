@@ -339,67 +339,142 @@ process_exec (void *f_name) {
  *
  * This function will be implemented in problem 2-2.  For now, it
  * does nothing. */
-int
-process_wait (tid_t child_tid UNUSED) {
-	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
-	 * XXX:       to add infinite loop here before
-	 * XXX:       implementing the process_wait. */
+// int
+// process_wait (tid_t child_tid UNUSED) {
+// 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
+// 	 * XXX:       to add infinite loop here before
+// 	 * XXX:       implementing the process_wait. */
 
-	struct thread *cur = thread_current();
-	struct list_elem *e;
-	if (child_tid == NULL)
-		return -1;
-	for(e=list_begin(&cur->child_list); e!=list_tail(&cur->child_list);
-		e=list_next(e)){
-			struct child *c = list_entry(e, struct child, elem);
-			if (c->child_tid == child_tid && c->is_waited == false){
-				sema_down(&c->sema);
-				int result_status = c->exit_status;
-				list_remove(e);
-				free(c);
-				return result_status;
-			}
-	}
-	return -1;
-	// struct thread *cur = thread_current();//현재 실행중인 스레드의 포인터를 가져온다
-    // struct list_elem *e;//list_elem을 참조하기 위해 e선언 -> 자식리스트를 순회하기 위한 리스트 요소 포인터
-    // for(e=list_begin(&cur->child_list);e!=list_end(&cur->child_list);e=list_next(e)){//child_list에 현재 child_tid가 있는지 확인 -> child_list에서 자식 스레드를 찾기 위한 반복문
-    //     struct child *c=list_entry(e,struct child,elem);//e로 참조해 child 정보를 불러온다 -> 리스트요소 e를 child 구조체로 변환하여 정보에 접근
-    //     if(c->child_tid==child_tid){//해당 tid를 가진 자식이라면? -> 해당 child_tid를 가진 자식 프로세스를 찾은 경우
-    //         if(c->is_waited)//이미 대기중인 자식이라면
-    //             return -1;//바로 리턴-1
-    //         c->is_waited = true;//대기중이 아니라면 대기시키기 위해 true로 변경
-    //         if(!c->is_exit){//만약 종료되기까지 시간이 남았다면
-    //             sema_down(&c->sema);//부모스레드를 블럭처리 (wait시킴)
-    //         }   
-    //         return c->exit_status;//자식 스레드의 종료 상태를 반환
-    //     }
-    // }
-	// return -1;
+// 	struct thread *cur = thread_current();
+// 	struct list_elem *e;
+// 	if (child_tid == NULL)
+// 		return -1;
+// 	for(e=list_begin(&cur->child_list); e!=list_tail(&cur->child_list);
+// 		e=list_next(e)){
+// 			struct child *c = list_entry(e, struct child, elem);
+// 			if (c->child_tid == child_tid && c->is_waited == false){
+// 				sema_down(&c->sema);
+// 				int result_status = c->exit_status;
+// 				list_remove(e);
+// 				free(c);
+// 				return result_status;
+// 			}
+// 	}
+// 	return -1;
+// 	// struct thread *cur = thread_current();//현재 실행중인 스레드의 포인터를 가져온다
+//     // struct list_elem *e;//list_elem을 참조하기 위해 e선언 -> 자식리스트를 순회하기 위한 리스트 요소 포인터
+//     // for(e=list_begin(&cur->child_list);e!=list_end(&cur->child_list);e=list_next(e)){//child_list에 현재 child_tid가 있는지 확인 -> child_list에서 자식 스레드를 찾기 위한 반복문
+//     //     struct child *c=list_entry(e,struct child,elem);//e로 참조해 child 정보를 불러온다 -> 리스트요소 e를 child 구조체로 변환하여 정보에 접근
+//     //     if(c->child_tid==child_tid){//해당 tid를 가진 자식이라면? -> 해당 child_tid를 가진 자식 프로세스를 찾은 경우
+//     //         if(c->is_waited)//이미 대기중인 자식이라면
+//     //             return -1;//바로 리턴-1
+//     //         c->is_waited = true;//대기중이 아니라면 대기시키기 위해 true로 변경
+//     //         if(!c->is_exit){//만약 종료되기까지 시간이 남았다면
+//     //             sema_down(&c->sema);//부모스레드를 블럭처리 (wait시킴)
+//     //         }   
+//     //         return c->exit_status;//자식 스레드의 종료 상태를 반환
+//     //     }
+//     // }
+// 	// return -1;
+// }
+
+// /* Exit the process. This function is called by thread_exit (). */
+// void
+// process_exit (void) {
+// 	struct thread *curr = thread_current ();
+//     /* TODO: 여기에 코드 작성
+//      * TODO: 프로세스 종료 메시지 구현 (project2/process_termination.html 참고)
+//      * TODO: 프로세스 자원 정리를 이곳에 구현하는 것을 권장합니다. */
+
+// 	// struct list_elem* e;
+// 	// struct thread *parent = curr->parent;
+// 	// for(e=list_begin(&parent->child_list);e!=list_back(&parent->child_list);e=list_next(e)){
+// 	// 	struct child* c = list_entry(e, struct child, elem);
+// 	// 	if(c->child_tid == curr->tid){
+// 	// 		sema_up(&c->sema);
+// 	// 		break;
+// 	// 	}
+// 	// }
+	
+// 	file_close (curr->run_file);
+//     process_cleanup ();
+// }
+/* ------------ process_wait ------------ */
+int
+process_wait (tid_t child_tid)
+{
+    struct thread *cur = thread_current ();
+    struct child  *c   = NULL;
+
+    if (child_tid == TID_ERROR)
+        return -1;
+
+    /* 1. 자식 구조체 탐색 */
+    for (struct list_elem *e = list_begin (&cur->child_list);
+         e != list_end (&cur->child_list);
+         e = list_next (e)) {
+        struct child *tmp = list_entry (e, struct child, elem);
+        if (tmp->child_tid == child_tid) { c = tmp; break; }
+    }
+    if (!c || c->is_waited)            /* 내 자식 아님·두 번 wait 금지 */
+        return -1;
+
+    c->is_waited = true;               /* race 방지: 먼저 표시 */
+    if (!c->is_exit)                   /* 아직 안 죽었으면 대기 */
+        sema_down (&c->sema);
+
+    int status = c->exit_status;       /* exit status 복사 */
+
+    /* 부모가 가진 파일 복제본 닫기 */
+    for (int fd = 2; fd < 64; fd++) {
+        if (cur->file_table[fd]) {
+            file_close (cur->file_table[fd]);
+            cur->file_table[fd] = NULL;
+        }
+    }
+
+    /* free 는 하지 않는다! (자식이 exit 끝날 때 수행) */
+    return status;
 }
 
-/* Exit the process. This function is called by thread_exit (). */
+/* ---------- process_exit ---------- */
+/* ------------ process_exit ------------ */
+/* ------------ process_exit ------------ */
 void
-process_exit (void) {
-	struct thread *curr = thread_current ();
-    /* TODO: 여기에 코드 작성
-     * TODO: 프로세스 종료 메시지 구현 (project2/process_termination.html 참고)
-     * TODO: 프로세스 자원 정리를 이곳에 구현하는 것을 권장합니다. */
+process_exit (void)
+{
+    struct thread *cur = thread_current ();
+    struct child  *c   = cur->my_self;
 
-	// struct list_elem* e;
-	// struct thread *parent = curr->parent;
-	// for(e=list_begin(&parent->child_list);e!=list_back(&parent->child_list);e=list_next(e)){
-	// 	struct child* c = list_entry(e, struct child, elem);
-	// 	if(c->child_tid == curr->tid){
-	// 		sema_up(&c->sema);
-	// 		break;
-	// 	}
-	// }
-	
-	file_close (curr->run_file);
+    /* 1. 부모에게 종료 통보 */
+    if (c) {
+        if (!c->is_exit)               /* 비정상 종료라면 -1 */
+            c->exit_status = -1;
+        c->is_exit = true;
+        sema_up (&c->sema);            /* 부모 깨우기 */
+
+        /* 2. 부모가 wait 이미 끝냈으면 지금 free */
+        if (c->is_waited) {
+            list_remove (&c->elem);
+            free (c);
+        }
+    }
+
+    /* 3. 열려 있던 파일 FD 모두 닫기 (0,1 제외) */
+    for (int fd = 2; fd < 64; fd++) {
+        if (cur->file_table[fd]) {
+            file_close (cur->file_table[fd]);   /* 내부에서 filesys_lock */
+            cur->file_table[fd] = NULL;
+        }
+    }
+    if (cur->run_file) {               /* 실행 파일도 해제 */
+        file_close (cur->run_file);
+        cur->run_file = NULL;
+    }
+
+    /* 4. 나머지 주소 공간 정리 */
     process_cleanup ();
 }
-
 /* Free the current process's resources. */
 static void
 process_cleanup (void) {
