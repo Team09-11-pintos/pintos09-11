@@ -521,7 +521,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;		
 	t->my_self = NULL;
-
+	t->run_file=NULL;
 	
 	t->wait_on_lock = NULL;
 	list_init(&(t->donations));

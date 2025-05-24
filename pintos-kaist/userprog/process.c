@@ -394,6 +394,7 @@ process_exit (void) {
 	// 		break;
 	// 	}
 	// }
+	file_close (curr->run_file);
     process_cleanup ();
 }
 
@@ -519,6 +520,8 @@ load (const char *file_name, struct intr_frame *if_) {
 		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
+	t->run_file=file;
+	file_deny_write(file);
 
 	/* Read and verify executable header. */
 	if (file_read (file, &ehdr, sizeof ehdr) != sizeof ehdr
@@ -602,7 +605,7 @@ load (const char *file_name, struct intr_frame *if_) {
 
 done:
 	/* We arrive here whether the load is successful or not. */
-	file_close (file);
+	//file_close (file);
 	return success;
 }
 
