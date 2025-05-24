@@ -223,6 +223,7 @@ __do_fork (void *aux) {
 	for(e = list_begin(&parent->child_list); e != list_end(&parent->child_list);e=list_next(e)){
 		struct child * target = list_entry(e, struct child, elem);
 		if(target->child_tid == current->tid){
+			target->exit_status = 0;   /* ★ fork 성공 신호 */
 			sema_up(&target->sema);
 			break;
 		}
@@ -394,6 +395,7 @@ process_exit (void) {
 	// 		break;
 	// 	}
 	// }
+	
 	file_close (curr->run_file);
     process_cleanup ();
 }

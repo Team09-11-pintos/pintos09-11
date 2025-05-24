@@ -220,7 +220,7 @@ sys_open(char* filename){
 	//file descriptor 할당
 	int fd = find_descriptor(cur);
 	if(fd == -1){
-		sys_exit(-1);
+		return -1;
 	}
     
 	// enum intr_level old = intr_disable();
