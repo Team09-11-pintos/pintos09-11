@@ -248,6 +248,7 @@ thread_create (const char *name, int priority,
 	/* 초기화 */
 	init_thread (t, name, priority);
 	tid = t->tid = allocate_tid ();
+	struct child * child_init=create_child(tid);
 
 	/* 커널 스레드 entry 설정
 	   rdi → 첫 번째 인자, rsi → 두 번째 인자 */
@@ -454,10 +455,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->status = THREAD_BLOCKED;
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp  = (uint64_t) t + PGSIZE - sizeof (void *);
+
 	t->priority = priority;
+	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;
 
-	t->original_priority = priority;
 	t->wait_on_lock = NULL;
 	list_init (&t->donations);
 	list_init(&t->child_list);
