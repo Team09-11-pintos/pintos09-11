@@ -230,7 +230,7 @@ __do_fork (void *aux) {
         free (aux);                 /* 준비된 인자 해제  */
         do_iret (&if_);             /* 사용자 영역 진입 */
     }
-
+//
 error:                              /* 복제 중 하나라도 실패 */
     /* 부모에게 실패(-1) 통보 */
     ci->exit_status = -1;
