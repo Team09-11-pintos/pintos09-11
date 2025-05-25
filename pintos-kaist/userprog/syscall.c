@@ -259,7 +259,7 @@ sys_exit(int status){
 		c->is_exit = true;			//child 구조체 안에 값들 수정
 		c->exit_status = status;
 		printf("%s: exit(%d)\n",cur->name,status);//로그
-		sema_up(&c->sema);
+		//sema_up(&c->sema);
 	}
 	thread_exit();
 }
