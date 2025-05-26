@@ -7,6 +7,7 @@
 #include <string.h>
 #include "userprog/gdt.h"
 #include "userprog/tss.h"
+#include "userprog/syscall.h"
 #include "filesys/directory.h"
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -63,8 +64,10 @@ process_create_initd (const char *file_name) {
 
 	/* Create a new thread to execute FILE_NAME. */
 	tid = thread_create (name, PRI_DEFAULT, initd, fn_copy);
-	if (tid == TID_ERROR)
+	if (tid == TID_ERROR){
 		palloc_free_page (fn_copy);
+		fn_copy = NULL;
+	}
 	return tid;
 }
 
@@ -98,6 +101,7 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 
 	if(child_tid < 0){
 		free(aux);
+		aux = NULL;
 		return TID_ERROR;
 	}
 
@@ -107,7 +111,7 @@ process_fork (const char *name, struct intr_frame *if_ UNUSED) {
 		struct child* ch = list_entry(e, struct child, elem);
 		if(ch->child_tid == child_tid){
 			sema_down(&ch->sema);
-			if(ch->exit_status==-1){
+			if(ch->exit_status == -1){
 				return TID_ERROR;
 			}
 			break;
@@ -224,7 +228,7 @@ __do_fork (void *aux) {
 	struct child *ci = current->my_self;   /* 내 child 구조체 */
 
     if (succ) {                     /* ★ fork 완전 성공 */
-        ci->exit_status = 0;
+		ci->exit_status = 0;
         sema_up (&ci->sema);        /* 이제야 부모 깨움  */
         free (aux);                 /* 준비된 인자 해제  */
         do_iret (&if_);             /* 사용자 영역 진입 */
@@ -232,8 +236,8 @@ __do_fork (void *aux) {
 //
 error:                              /* 복제 중 하나라도 실패 */
     /* 부모에게 실패(-1) 통보 */
-    ci->exit_status = -1;
-    ci->is_exit     = true;
+	ci->exit_status = -1;
+    ci->is_exit = true;
     sema_up (&ci->sema);
     free (aux);
     thread_exit ();
@@ -281,6 +285,7 @@ process_exec (void *f_name) {
 	
 	if (!success){
 		palloc_free_page (file_name);
+		file_name = NULL;
 		return -1;
 	}
 		
@@ -323,6 +328,7 @@ process_exec (void *f_name) {
 	// 	return -1;
 
 	palloc_free_page (file_name);
+	file_name = NULL;
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -374,16 +380,20 @@ process_exit (void) {
      * TODO: 프로세스 자원 정리를 이곳에 구현하는 것을 권장합니다. */
 
 
-	// struct list_elem *e;
-	// for(e=list_begin(&curr->child_list);e!=list_end(&curr->child_list);e=list_next(e)){
-	// 	struct child* c = list_entry(e, struct child, elem);
-	// 	if(c==NULL)
-	// 		continue;
-	// 	else{
-	// 		list_remove(e);
-	// 		free(c);
-	// 	}
-	// }
+	struct list_elem *e, *next;
+	for(e=list_begin(&curr->child_list);e!=list_end(&curr->child_list);e=next){
+		next = list_next(e);
+		struct child* ci = list_entry(e, struct child, elem);
+		list_remove(e);
+		free(ci);
+
+	}
+
+	while(!list_empty(&curr->child_list)){
+		e = list_pop_front(&curr->child_list);
+		struct child* ci = list_entry(e, struct child, elem);
+		free(ci);
+	}
 
 	struct file** ft = curr->file_table;
 	for(int i=0;i<127;i++){

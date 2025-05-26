@@ -162,6 +162,7 @@ sys_exec(const char *file){
 	char *file_name = palloc_get_page(4);
 	if (file_name == NULL){
 		palloc_free_page(file_name);
+		file_name = NULL;
 		sys_exit(-1);
 	}
 
@@ -169,7 +170,6 @@ sys_exec(const char *file){
 	strlcpy(file_name, file, PGSIZE); //copy file, user->kernal
 
 	if (process_exec(file_name) == -1){
-		// palloc_free_page(file_name);
 		sys_exit(-1);
 	}
 	NOT_REACHED();
