@@ -373,15 +373,6 @@ process_exit (void) {
      * TODO: 프로세스 종료 메시지 구현 (project2/process_termination.html 참고)
      * TODO: 프로세스 자원 정리를 이곳에 구현하는 것을 권장합니다. */
 
-	// struct list_elem* e;
-	// struct thread *parent = curr->parent;
-	// for(e=list_begin(&parent->child_list);e!=list_back(&parent->child_list);e=list_next(e)){
-	// 	struct child* c = list_entry(e, struct child, elem);
-	// 	if(c->child_tid == curr->tid){
-	// 		sema_up(&c->sema);
-	// 		break;
-	// 	}
-	// }
 
 	// struct list_elem *e;
 	// for(e=list_begin(&curr->child_list);e!=list_end(&curr->child_list);e=list_next(e)){
@@ -394,14 +385,17 @@ process_exit (void) {
 	// 	}
 	// }
 
-	// struct file** ft = curr->file_table;
-	// for(int i=0;i<127;i++){
-	// 	if(ft[i]==NULL){
-	// 		continue;
-	// 	}
-	// 	file_close(ft[i]);
-	// }
-	file_close (curr->run_file);
+	struct file** ft = curr->file_table;
+	for(int i=0;i<127;i++){
+		if(ft[i]==NULL){
+			continue;
+		}
+		file_close(ft[i]);
+	}
+
+	if (curr->run_file){
+		file_close (curr->run_file);
+	}
     process_cleanup ();
 }
 
