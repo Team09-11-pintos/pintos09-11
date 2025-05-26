@@ -389,12 +389,6 @@ process_exit (void) {
 
 	}
 
-	while(!list_empty(&curr->child_list)){
-		e = list_pop_front(&curr->child_list);
-		struct child* ci = list_entry(e, struct child, elem);
-		free(ci);
-	}
-
 	struct file** ft = curr->file_table;
 	for(int i=0;i<127;i++){
 		if(ft[i]==NULL){
