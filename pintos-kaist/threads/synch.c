@@ -126,6 +126,7 @@ sema_try_down (struct semaphore *sema) {
    and wakes up one thread of those waiting for SEMA, if any.
 
    This function may be called from an interrupt handler. */
+
 void
 sema_up (struct semaphore *sema) {
 	enum intr_level old_level;
@@ -142,7 +143,6 @@ sema_up (struct semaphore *sema) {
 	preempt_priority();
 	intr_set_level (old_level);
 }
-
 static void sema_test_helper (void *sema_);
 
 /* Self-test for semaphores that makes control "ping-pong"
